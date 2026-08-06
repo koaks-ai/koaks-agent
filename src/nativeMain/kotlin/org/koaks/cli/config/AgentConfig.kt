@@ -1,7 +1,7 @@
 package org.koaks.cli.config
 
 internal const val DEFAULT_THREAD_ID = "koaks-agent"
-internal const val DEFAULT_HISTORY_MESSAGES = 40
+internal const val DEFAULT_HISTORY_MESSAGES = 1024
 
 internal const val DEFAULT_INSTRUCTIONS = """
 You are Koaks Agent, a capable general-purpose assistant.
