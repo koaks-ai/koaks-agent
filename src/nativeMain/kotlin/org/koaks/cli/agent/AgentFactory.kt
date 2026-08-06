@@ -6,6 +6,7 @@ import org.koaks.cli.config.AgentConfig
 import org.koaks.cli.config.CliException
 import org.koaks.cli.config.Provider
 import org.koaks.cli.tool.registerBuiltinCliTools
+import org.koaks.cli.tool.registerSubagentBuiltinCliTools
 import org.koaks.framework.loop.Agent
 import org.koaks.framework.loop.ModelScope
 import org.koaks.framework.loop.ModelSelection
@@ -29,7 +30,7 @@ internal object AgentFactory {
             terminateAfter(maxSteps = 1024)
             listener?.let { install(it) }
             tools {
-                registerBuiltinCliTools(config, includeSubagent = true)
+                registerBuiltinCliTools(config)
             }
             if (config.skillPaths.isNotEmpty()) {
                 skills {
@@ -51,7 +52,7 @@ internal object AgentFactory {
             name = "koaks-agent-subagent"
             terminateAfter(maxSteps = SUBAGENT_MAX_STEPS)
             tools {
-                registerBuiltinCliTools(config, includeSubagent = false)
+                registerSubagentBuiltinCliTools()
             }
             model {
                 configureModel(config, apiKey)
@@ -109,5 +110,5 @@ internal object AgentFactory {
     }
 
     private const val ANTHROPIC_THINKING_BUDGET_TOKENS = 1024
-    private const val SUBAGENT_MAX_STEPS = 64
+    private const val SUBAGENT_MAX_STEPS = 1024
 }

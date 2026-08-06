@@ -7,15 +7,17 @@ import org.koaks.framework.tool.Tool
 
 internal fun ToolScope.registerBuiltinCliTools(
     config: AgentConfig,
-    includeSubagent: Boolean = true,
 ) {
     tool(BashTool)
     tool(ReadTool)
     tool(WriteTool)
     tool(EditTool)
-    if (includeSubagent) {
-        tool(SubagentTool(config))
-    }
+    tool(SubagentTool(config))
+}
+
+internal fun ToolScope.registerSubagentBuiltinCliTools() {
+    tool(BashTool)
+    tool(ReadTool)
 }
 
 @Serializable
