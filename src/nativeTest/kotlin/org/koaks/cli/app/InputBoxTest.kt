@@ -9,6 +9,7 @@ import org.koaks.cli.tui.Theme
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InputBoxTest {
@@ -90,16 +91,17 @@ class InputBoxTest {
 
         assertContains(
             output.content,
-            "${Ansi.USER_INPUT_BORDER}${Ansi.USER_INPUT_BACKGROUND}┃${Ansi.RESET}",
+            "${Ansi.USER_INPUT_BORDER}┃${Ansi.RESET}",
         )
         assertContains(
             output.content,
-            "${Ansi.USER_INPUT_BORDER}${Ansi.USER_INPUT_BACKGROUND}╻${Ansi.RESET}",
+            "${Ansi.USER_INPUT_BORDER}╻${Ansi.RESET}",
         )
         assertContains(
             output.content,
-            "${Ansi.USER_INPUT_BORDER}${Ansi.USER_INPUT_BACKGROUND}╹${Ansi.RESET}",
+            "${Ansi.USER_INPUT_BORDER}╹${Ansi.RESET}",
         )
+        assertFalse(output.content.contains(Ansi.USER_INPUT_BORDER + Ansi.USER_INPUT_BACKGROUND))
         assertContains(output.content, "${Ansi.USER_INPUT_BACKGROUND_FILL}▄")
         assertContains(output.content, "${Ansi.USER_INPUT_BACKGROUND_FILL}▀")
         assertContains(output.content, "${Ansi.USER_INPUT_BACKGROUND}  你好")

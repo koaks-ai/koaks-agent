@@ -23,9 +23,9 @@ internal class Theme(val enabled: Boolean) {
     fun codeNumber(text: String): String = color(Ansi.CODE_NUMBER, text)
 
     fun inputSide(): String =
-        if (enabled) "${Ansi.USER_INPUT_BORDER}${Ansi.USER_INPUT_BACKGROUND}┃${Ansi.RESET}" else "┃"
+        if (enabled) "${Ansi.USER_INPUT_BORDER}┃${Ansi.RESET}" else "┃"
     fun inputPaddingSide(text: String): String =
-        if (enabled) "${Ansi.USER_INPUT_BORDER}${Ansi.USER_INPUT_BACKGROUND}$text${Ansi.RESET}" else text
+        if (enabled) "${Ansi.USER_INPUT_BORDER}$text${Ansi.RESET}" else text
     fun inputBackground(text: String): String = color(Ansi.USER_INPUT_BACKGROUND, text)
     fun inputBackgroundFill(text: String): String = color(Ansi.USER_INPUT_BACKGROUND_FILL, text)
     fun inputCommand(text: String): String =
