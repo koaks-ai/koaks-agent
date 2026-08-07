@@ -168,12 +168,25 @@ internal object InputBox {
     }
 
     fun renderSubmittedMessage(output: Output, theme: Theme, text: String, width: Int) {
+        renderContentBlock(
+            output = output,
+            theme = theme,
+            lines = text.replace("\r\n", "\n").replace('\r', '\n').split('\n'),
+            width = width,
+        )
+    }
+
+    fun renderContentBlock(
+        output: Output,
+        theme: Theme,
+        lines: List<String>,
+        width: Int,
+        accent: BlockAccent = BlockAccent.USER_INPUT,
+    ) {
         val safeWidth = width.coerceAtLeast(MIN_INPUT_BLOCK_WIDTH)
-        output.writeLine(inputBlockPaddingRow(theme, safeWidth, InputPaddingEdge.TOP))
-        text.replace("\r\n", "\n").replace('\r', '\n').split('\n').forEach { line ->
-            output.writeLine(inputBlockRow(line, theme, safeWidth))
-        }
-        output.writeLine(inputBlockPaddingRow(theme, safeWidth, InputPaddingEdge.BOTTOM))
+        output.writeLine(inputBlockPaddingRow(theme, safeWidth, InputPaddingEdge.TOP, accent))
+        lines.forEach { line -> output.writeLine(inputBlockRow(line, theme, safeWidth, accent)) }
+        output.writeLine(inputBlockPaddingRow(theme, safeWidth, InputPaddingEdge.BOTTOM, accent))
     }
 
     private fun clearReservedInputArea(output: Output, layout: TerminalLayout, menuRows: Int) {
@@ -243,25 +256,43 @@ internal object InputBox {
         return inputBlockRow(content, theme, width)
     }
 
-    private fun inputBlockRow(content: String, theme: Theme, width: Int): String {
+    private fun inputBlockRow(
+        content: String,
+        theme: Theme,
+        width: Int,
+        accent: BlockAccent = BlockAccent.USER_INPUT,
+    ): String {
         val body = "  $content"
-        if (!theme.enabled) return theme.inputSide() + body
+        val side = when (accent) {
+            BlockAccent.USER_INPUT -> theme.inputSide()
+            BlockAccent.WELCOME -> theme.welcomeSide()
+        }
+        if (!theme.enabled) return side + body
 
         val interiorWidth = (width - INPUT_BORDER_WIDTH).coerceAtLeast(1)
         val clipped = TextUtil.truncateVisible(body, interiorWidth)
-        return theme.inputSide() + theme.inputBackground(TextUtil.padVisible(clipped, interiorWidth))
+        val padding = TextUtil.rule(' ', interiorWidth - TextUtil.visibleWidth(clipped))
+        return side + theme.inputBackground(clipped) + theme.inputBackground(padding)
     }
 
-    private fun inputBlockPaddingRow(theme: Theme, width: Int, edge: InputPaddingEdge): String {
+    private fun inputBlockPaddingRow(
+        theme: Theme,
+        width: Int,
+        edge: InputPaddingEdge,
+        accent: BlockAccent = BlockAccent.USER_INPUT,
+    ): String {
         val (border, fill) = when (edge) {
             InputPaddingEdge.TOP -> "╻" to "▄"
             InputPaddingEdge.BOTTOM -> "╹" to "▀"
         }
-        if (!theme.enabled) return theme.inputPaddingSide(border)
+        val side = when (accent) {
+            BlockAccent.USER_INPUT -> theme.inputPaddingSide(border)
+            BlockAccent.WELCOME -> theme.welcomePaddingSide(border)
+        }
+        if (!theme.enabled) return side
 
         val interiorWidth = (width - INPUT_BORDER_WIDTH).coerceAtLeast(1)
-        return theme.inputPaddingSide(border) +
-            theme.inputBackgroundFill(fill.repeat(interiorWidth))
+        return side + theme.inputBackgroundFill(fill.repeat(interiorWidth))
     }
 
     private fun commandMenuLines(
@@ -302,6 +333,11 @@ internal object InputBox {
     private enum class InputPaddingEdge {
         TOP,
         BOTTOM,
+    }
+
+    enum class BlockAccent {
+        USER_INPUT,
+        WELCOME,
     }
 
     private const val INPUT_BORDER_WIDTH = 1

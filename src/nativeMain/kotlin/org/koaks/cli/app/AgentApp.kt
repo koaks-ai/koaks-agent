@@ -54,7 +54,13 @@ internal class AgentApp(
 
         if (layout.fixedInput) InputBox.enterFixedLayout(output, layout)
         try {
-            WelcomeView.render(session.config, contentOutput, theme, clearScreen = !layout.fixedInput)
+            WelcomeView.render(
+                config = session.config,
+                output = contentOutput,
+                theme = theme,
+                clearScreen = !layout.fixedInput,
+                width = layout.columns - 1,
+            )
             var hasCompletedTurn = false
             var prefetchedInput: PrefetchedInput? = null
 

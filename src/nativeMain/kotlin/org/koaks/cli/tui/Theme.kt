@@ -33,6 +33,10 @@ internal class Theme(val enabled: Boolean) {
         if (enabled) "${Ansi.USER_INPUT_BORDER}┃${Ansi.RESET}" else "┃"
     fun inputPaddingSide(text: String): String =
         if (enabled) "${Ansi.USER_INPUT_BORDER}$text${Ansi.RESET}" else text
+    fun welcomeSide(): String =
+        if (enabled) "${Ansi.WELCOME_BORDER}┃${Ansi.RESET}" else "┃"
+    fun welcomePaddingSide(text: String): String =
+        if (enabled) "${Ansi.WELCOME_BORDER}$text${Ansi.RESET}" else text
     fun inputBackground(text: String): String = color(Ansi.USER_INPUT_BACKGROUND, text)
     fun inputBackgroundFill(text: String): String = color(Ansi.USER_INPUT_BACKGROUND_FILL, text)
     fun inputCommand(text: String): String =
