@@ -314,13 +314,15 @@ internal class AgentApp(
                             }
                             modelOpen = false
                         } else {
+                            val previousLayout = layout
                             layout = refreshLayout(layout, theme, fixedMenuRows)
                             val outputSuppressed = viewport.isViewingHistory
                             if (editorVisible && !outputSuppressed) InputBox.resumeFixedOutput(output)
                             trace.eventReceived(event)
                             eventPrinter.print(event)
                             trace.eventRendered(event)
-                            if (editorVisible) {
+                            val layoutChanged = layout != previousLayout
+                            if (editorVisible && (!outputSuppressed || layoutChanged)) {
                                 if (!outputSuppressed) InputBox.pauseFixedOutput(output)
                                 viewport.redraw(layout, fixedMenuRows)
                                 editorSnapshot?.let { snapshot ->
