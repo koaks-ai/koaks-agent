@@ -27,7 +27,7 @@ internal object Ansi {
     val CODE_NUMBER = "${CSI}38;5;215m"
     val CODE_LANGUAGE = "${CSI}38;5;117m"
     val DEFAULT_FOREGROUND = "${CSI}39m"
-    val USER_INPUT_BORDER = ORANGE_YELLOW
+    val USER_INPUT_BORDER = CYAN
     val WELCOME_BORDER = "${CSI}38;2;196;157;255m"
     val USER_INPUT_BACKGROUND = "${CSI}48;2;28;28;42m"
     val USER_INPUT_BACKGROUND_FILL = "${CSI}38;2;28;28;42m"
@@ -40,6 +40,12 @@ internal object Ansi {
     val DISABLE_MOUSE_TRACKING = "${CSI}?1000l${CSI}?1006l"
     val ENABLE_ALTERNATE_SCROLL = "${CSI}?1007h"
     val DISABLE_ALTERNATE_SCROLL = "${CSI}?1007l"
+    val ENABLE_BRACKETED_PASTE = "${CSI}?2004h"
+    val DISABLE_BRACKETED_PASTE = "${CSI}?2004l"
+    val ENABLE_MODIFY_OTHER_KEYS = "${CSI}>4;1m"
+    val DISABLE_MODIFY_OTHER_KEYS = "${CSI}>4;0m"
+    val HIDE_CURSOR = "${CSI}?25l"
+    val SHOW_CURSOR = "${CSI}?25h"
     val SAVE_CURSOR = "${CSI}s"
     val RESTORE_CURSOR = "${CSI}u"
     val RESET_SCROLL_REGION = "${CSI}r"

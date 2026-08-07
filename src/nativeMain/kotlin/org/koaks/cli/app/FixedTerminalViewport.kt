@@ -47,11 +47,11 @@ internal class FixedTerminalViewport(private val terminal: Output) {
     }
 
     /** Positive rows scroll toward older output; negative rows return toward the latest output. */
-    fun scrollBy(rows: Int, layout: TerminalLayout, menuRows: Int = 0): Boolean {
+    fun scrollBy(rows: Int, layout: TerminalLayout, menuRows: Int = 0, inputRows: Int = 1): Boolean {
         if (rows == 0) return false
         val renderedRows = transcript.renderedRows(contentWidth(layout))
         accountForNewRows(renderedRows.size)
-        val fullHeight = layout.outputBottomRowForMenu(menuRows)
+        val fullHeight = layout.outputBottomRowFor(menuRows, inputRows)
         val maxOffset = (renderedRows.size - fullHeight).coerceAtLeast(0)
         val nextOffset = (scrollOffsetRows + rows).coerceIn(0, maxOffset)
         val nextManualScrollActive = when {
@@ -63,7 +63,7 @@ internal class FixedTerminalViewport(private val terminal: Output) {
 
         scrollOffsetRows = nextOffset
         manualScrollActive = nextManualScrollActive
-        renderRows(renderedRows, layout, menuRows)
+        renderRows(renderedRows, layout, menuRows, inputRows)
         terminal.flush()
         return true
     }
@@ -74,27 +74,32 @@ internal class FixedTerminalViewport(private val terminal: Output) {
         manualScrollActive = false
         val renderedRows = transcript.renderedRows(contentWidth(layout))
         knownRenderedRowCount = renderedRows.size
-        renderRows(renderedRows, layout, menuRows = 0)
+        renderRows(renderedRows, layout, menuRows = 0, inputRows = 1)
     }
 
-    fun redraw(layout: TerminalLayout, menuRows: Int = 0) {
-        val height = layout.outputBottomRowForMenu(menuRows)
+    fun redraw(layout: TerminalLayout, menuRows: Int = 0, inputRows: Int = 1) {
+        val height = layout.outputBottomRowFor(menuRows, inputRows)
         val renderedRows = transcript.renderedRows(contentWidth(layout))
         accountForNewRows(renderedRows.size)
         val maxOffset = (renderedRows.size - height).coerceAtLeast(0)
         scrollOffsetRows = scrollOffsetRows.coerceAtMost(maxOffset)
-        renderRows(renderedRows, layout, menuRows)
+        renderRows(renderedRows, layout, menuRows, inputRows)
     }
 
     val isViewingHistory: Boolean
         get() = manualScrollActive
 
-    private fun renderRows(renderedRows: List<String>, layout: TerminalLayout, menuRows: Int) {
-        val fullHeight = layout.outputBottomRowForMenu(menuRows)
+    private fun renderRows(
+        renderedRows: List<String>,
+        layout: TerminalLayout,
+        menuRows: Int,
+        inputRows: Int,
+    ) {
+        val fullHeight = layout.outputBottomRowFor(menuRows, inputRows)
         val contentHeight = if (manualScrollActive) {
             fullHeight
         } else {
-            layout.followOutputBottomRowForMenu(menuRows)
+            layout.followOutputBottomRowFor(menuRows, inputRows)
         }
         val bottomExclusive = (renderedRows.size - scrollOffsetRows).coerceAtLeast(0)
         val top = (bottomExclusive - contentHeight).coerceAtLeast(0)

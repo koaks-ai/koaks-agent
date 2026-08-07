@@ -1,7 +1,10 @@
 package org.koaks.cli.tui
 
-/** Rows reserved for the input box at the bottom of the screen in fixed-input mode. */
-internal const val INPUT_BOX_HEIGHT = 3
+/** Maximum visible text rows inside the fixed input box. */
+internal const val MAX_INPUT_TEXT_ROWS = 3
+
+/** Rows reserved for the maximum-height input box, including its top and bottom edges. */
+internal const val INPUT_BOX_HEIGHT = MAX_INPUT_TEXT_ROWS + 2
 
 /** Extra breathing room kept below automatically-followed output. */
 internal const val OUTPUT_BOTTOM_SAFETY_ROWS = 3
@@ -21,22 +24,31 @@ internal class TerminalLayout private constructor(
     val columns: Int,
     val commandMenuRows: Int,
 ) {
+    val compactInputTopRow: Int = (rows - 2).coerceAtLeast(1)
+    val compactInputRow: Int = (rows - 1).coerceAtLeast(1)
     val inputTopRow: Int = (rows - INPUT_BOX_HEIGHT + 1).coerceAtLeast(1)
-    val menuTopRow: Int = (inputTopRow - commandMenuRows).coerceAtLeast(1)
-    val outputBottomRow: Int = (inputTopRow - 1).coerceAtLeast(1)
+    val menuTopRow: Int = (compactInputTopRow - commandMenuRows).coerceAtLeast(1)
+    val outputBottomRow: Int = outputBottomRowFor(menuRows = 0, inputRows = 1)
     val followOutputBottomRow: Int =
         (outputBottomRow - OUTPUT_BOTTOM_SAFETY_ROWS).coerceAtLeast(1)
     val inputRow: Int = (rows - 1).coerceAtLeast(1)
     val inputBottomRow: Int = rows.coerceAtLeast(1)
     val reservedInputTopRow: Int = inputTopRow
-    val compactInputTopRow: Int = (rows - INPUT_BOX_HEIGHT + 1).coerceAtLeast(1)
-    val compactInputRow: Int = (rows - 1).coerceAtLeast(1)
 
     fun outputBottomRowForMenu(menuRows: Int): Int =
-        (inputTopRow - menuRows.coerceIn(0, commandMenuRows) - 1).coerceAtLeast(1)
+        outputBottomRowFor(menuRows, inputRows = 1)
 
     fun followOutputBottomRowForMenu(menuRows: Int): Int =
-        (outputBottomRowForMenu(menuRows) - OUTPUT_BOTTOM_SAFETY_ROWS).coerceAtLeast(1)
+        followOutputBottomRowFor(menuRows, inputRows = 1)
+
+    fun outputBottomRowFor(menuRows: Int, inputRows: Int): Int {
+        val safeMenuRows = menuRows.coerceIn(0, commandMenuRows)
+        val extraInputRows = inputRows.coerceIn(1, MAX_INPUT_TEXT_ROWS) - 1
+        return (compactInputTopRow - extraInputRows - safeMenuRows - 1).coerceAtLeast(1)
+    }
+
+    fun followOutputBottomRowFor(menuRows: Int, inputRows: Int): Int =
+        (outputBottomRowFor(menuRows, inputRows) - OUTPUT_BOTTOM_SAFETY_ROWS).coerceAtLeast(1)
 
     override fun equals(other: Any?): Boolean =
         other is TerminalLayout &&

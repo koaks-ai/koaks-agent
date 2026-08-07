@@ -84,6 +84,107 @@ class InputBoxTest {
     }
 
     @Test
+    fun wrapsLongFixedInputAcrossVisibleRows() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(rows = 40, columns = 32, fixedInput = true)
+        val text = "abcdefghijklmnopqrstuvwxyz0123456789"
+        val snapshot = LineEditorSnapshot(
+            text = text,
+            cursor = text.length,
+            suggestions = emptyList(),
+            selectedSuggestionIndex = null,
+            recognizedCommandEnd = null,
+        )
+
+        InputBox.renderFixedEditor(output, layout, Theme(enabled = true), snapshot)
+
+        assertContains(output.content, text.take(28))
+        assertContains(output.content, text.takeLast(8))
+        assertContains(output.content, Ansi.cursor(layout.inputBottomRow - 1, 12))
+    }
+
+    @Test
+    fun inputLongerThanThreeRowsFollowsTheCursor() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(rows = 40, columns = 32, fixedInput = true)
+        val text =
+            "0".repeat(28) +
+                "1".repeat(28) +
+                "2".repeat(28) +
+                "3".repeat(28) +
+                "4".repeat(18)
+        val snapshot = LineEditorSnapshot(
+            text = text,
+            cursor = text.length,
+            suggestions = emptyList(),
+            selectedSuggestionIndex = null,
+            recognizedCommandEnd = null,
+        )
+
+        InputBox.renderFixedEditor(output, layout, Theme(enabled = true), snapshot)
+
+        assertFalse(output.content.contains("0".repeat(28)))
+        assertContains(output.content, "2".repeat(28))
+        assertContains(output.content, "4".repeat(18))
+        assertContains(output.content, Ansi.cursor(layout.inputBottomRow - 1, 22))
+    }
+
+    @Test
+    fun rendersMultilinePasteAsACompactPreview() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(rows = 40, columns = 80, fixedInput = true)
+        val preview = "[粘贴 3 行内容]"
+        val snapshot = LineEditorSnapshot(
+            text = "first\nsecond\nthird",
+            cursor = 18,
+            suggestions = emptyList(),
+            selectedSuggestionIndex = null,
+            recognizedCommandEnd = null,
+            displayText = preview,
+            displayCursor = preview.length,
+            pastedLineCount = 3,
+        )
+
+        InputBox.renderFixedEditor(output, layout, Theme(enabled = false), snapshot)
+
+        assertContains(output.content, preview)
+        assertFalse(output.content.contains("first"))
+        assertEquals(1, InputBox.editorTextRows(snapshot, layout))
+    }
+
+    @Test
+    fun explicitNewlinesUseSeparateFixedInputRows() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(rows = 40, columns = 80, fixedInput = true)
+        val text = "first\nsecond"
+        val snapshot = LineEditorSnapshot(
+            text = text,
+            cursor = text.length,
+            suggestions = emptyList(),
+            selectedSuggestionIndex = null,
+            recognizedCommandEnd = null,
+        )
+
+        InputBox.renderFixedEditor(output, layout, Theme(enabled = false), snapshot)
+
+        assertContains(output.content, "first")
+        assertContains(output.content, "second")
+        assertEquals(2, InputBox.editorTextRows(snapshot, layout))
+    }
+
+    @Test
+    fun wrapsSubmittedUserMessageWithoutDroppingText() {
+        val output = RecordingOutput()
+
+        InputBox.renderSubmittedMessage(output, Theme(enabled = false), "abcdefghijklmnop", width = 10)
+
+        assertEquals(
+            "╻\n┃  abcdefg\n┃  hijklmn\n┃  op\n╹\n",
+            output.content,
+        )
+    }
+
+    @Test
     fun rendersSubmittedUserMessageAsBackgroundBlockWithLeftBorder() {
         val output = RecordingOutput()
 
@@ -129,7 +230,7 @@ class InputBoxTest {
 
         InputBox.enterFixedLayout(output, layout)
 
-        assertEquals(layout.inputTopRow - 1, layout.outputBottomRow)
+        assertEquals(layout.compactInputTopRow - 1, layout.outputBottomRow)
         assertEquals(layout.menuTopRow - 1, layout.outputBottomRowForMenu(layout.commandMenuRows))
         assertContains(output.content, Ansi.ENTER_ALTERNATE_SCREEN)
         assertContains(output.content, Ansi.DISABLE_MOUSE_TRACKING)
@@ -166,8 +267,11 @@ class InputBoxTest {
         InputBox.leaveFixedLayout(output, layout)
 
         assertContains(output.content, Ansi.RESET_CURSOR_STYLE)
+        assertContains(output.content, Ansi.SHOW_CURSOR)
         assertContains(output.content, Ansi.DISABLE_MOUSE_TRACKING)
         assertContains(output.content, Ansi.DISABLE_ALTERNATE_SCROLL)
+        assertContains(output.content, Ansi.DISABLE_MODIFY_OTHER_KEYS)
+        assertContains(output.content, Ansi.DISABLE_BRACKETED_PASTE)
         assertTrue(output.content.endsWith(Ansi.LEAVE_ALTERNATE_SCREEN))
     }
 
@@ -189,9 +293,49 @@ class InputBoxTest {
 
         InputBox.resizeFixedLayout(output, oldLayout, newLayout, previousMenuRows = 1)
 
-        assertContains(output.content, Ansi.scrollRegion(1, newLayout.followOutputBottomRow))
-        assertContains(output.content, "${Ansi.cursor(oldLayout.inputTopRow - 1, 1)}${Ansi.CLEAR_LINE}")
-        assertContains(output.content, "${Ansi.cursor(newLayout.inputTopRow - 1, 1)}${Ansi.CLEAR_LINE}")
+        assertContains(output.content, Ansi.scrollRegion(1, newLayout.followOutputBottomRowForMenu(1)))
+        assertContains(output.content, "${Ansi.cursor(oldLayout.compactInputTopRow - 1, 1)}${Ansi.CLEAR_LINE}")
+        assertContains(output.content, "${Ansi.cursor(newLayout.compactInputTopRow - 1, 1)}${Ansi.CLEAR_LINE}")
+    }
+
+    @Test
+    fun commandMenuShrinksTheFixedOutputScrollRegion() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(
+            rows = 40,
+            columns = 80,
+            fixedInput = true,
+            commandMenuRows = 6,
+        )
+
+        InputBox.updateFixedOutputRegion(output, layout, menuRows = 4)
+
+        assertEquals(Ansi.scrollRegion(1, layout.followOutputBottomRowForMenu(4)), output.content)
+    }
+
+    @Test
+    fun multilineInputShrinksTheFixedOutputScrollRegion() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(rows = 40, columns = 80, fixedInput = true)
+
+        InputBox.updateFixedOutputRegion(output, layout, inputRows = 3)
+
+        assertEquals(Ansi.scrollRegion(1, layout.followOutputBottomRowFor(0, 3)), output.content)
+    }
+
+    @Test
+    fun restoringOutputCursorReopensTheFullFixedOutputRegion() {
+        val output = RecordingOutput()
+        val layout = TerminalLayout.of(
+            rows = 40,
+            columns = 80,
+            fixedInput = true,
+            commandMenuRows = 6,
+        )
+
+        InputBox.restoreOutputCursor(output, layout, Theme(enabled = true), menuRows = 4)
+
+        assertContains(output.content, Ansi.scrollRegion(1, layout.followOutputBottomRow))
     }
 
     @Test
@@ -218,9 +362,10 @@ class InputBoxTest {
         val rows = InputBox.renderFixedEditor(output, layout, Theme(enabled = true), snapshot)
 
         assertEquals(suggestions.size, rows)
-        assertTrue(layout.menuTopRow < layout.inputTopRow)
-        assertTrue(output.content.indexOf(Ansi.cursor(layout.menuTopRow, 1)) <
-            output.content.indexOf(Ansi.cursor(layout.inputTopRow, 1)))
+        assertTrue(layout.menuTopRow < layout.compactInputTopRow)
+        val menuTopRow = layout.compactInputTopRow - suggestions.size
+        assertTrue(output.content.indexOf(Ansi.cursor(menuTopRow, 1)) <
+            output.content.indexOf(Ansi.cursor(layout.compactInputTopRow, 1)))
         assertContains(output.content, "${Ansi.BOLD}${Ansi.BLUE}/help")
     }
 
@@ -247,7 +392,7 @@ class InputBoxTest {
         val rows = InputBox.renderFixedEditor(output, layout, Theme(enabled = true), snapshot)
 
         assertEquals(suggestions.size, rows)
-        val adjacentMenuCursor = Ansi.cursor(layout.inputTopRow - suggestions.size, 1)
+        val adjacentMenuCursor = Ansi.cursor(layout.compactInputTopRow - suggestions.size, 1)
         assertContains(output.content, adjacentMenuCursor)
         assertTrue(output.content.lastIndexOf(adjacentMenuCursor) <
             output.content.indexOf("${Ansi.BOLD}${Ansi.BLUE}/exit"))

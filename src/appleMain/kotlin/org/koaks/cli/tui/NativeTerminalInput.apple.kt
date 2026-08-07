@@ -74,23 +74,56 @@ internal actual object NativeTerminalInput {
 
     private fun readEscapeSequence(): TerminalKey {
         if (getchar() != '['.code) return TerminalKey.Escape
-        return when (val first = getchar()) {
-            'A'.code -> TerminalKey.Up
-            'B'.code -> TerminalKey.Down
-            'C'.code -> TerminalKey.Right
-            'D'.code -> TerminalKey.Left
-            'H'.code -> TerminalKey.Home
-            'F'.code -> TerminalKey.End
-            '3'.code -> readTildeKey(TerminalKey.Delete)
-            '5'.code -> readTildeKey(TerminalKey.PageUp)
-            '6'.code -> readTildeKey(TerminalKey.PageDown)
-            -1 -> TerminalKey.EndOfInput
-            else -> TerminalKey.Escape
+        val sequence = readCsiSequence() ?: return TerminalKey.EndOfInput
+        return when (sequence) {
+            "A" -> TerminalKey.Up
+            "B" -> TerminalKey.Down
+            "C" -> TerminalKey.Right
+            "D" -> TerminalKey.Left
+            "H" -> TerminalKey.Home
+            "F" -> TerminalKey.End
+            "3~" -> TerminalKey.Delete
+            "5~" -> TerminalKey.PageUp
+            "6~" -> TerminalKey.PageDown
+            "200~" -> TerminalKey.Paste(readBracketedPaste())
+            else -> decodeCsiEnterKey(sequence) ?: TerminalKey.Escape
         }
     }
 
-    private fun readTildeKey(key: TerminalKey): TerminalKey =
-        if (getchar() == '~'.code) key else TerminalKey.Escape
+    private fun readCsiSequence(): String? {
+        val sequence = StringBuilder()
+        while (true) {
+            val value = getchar()
+            if (value < 0) return null
+            val character = value.toChar()
+            sequence.append(character)
+            if (character in '@'..'~') return sequence.toString()
+        }
+    }
+
+    /** Reads UTF-8 bytes until the bracketed-paste end marker. */
+    private fun readBracketedPaste(): String {
+        val endMarker = listOf(27, '['.code, '2'.code, '0'.code, '1'.code, '~'.code)
+        val content = mutableListOf<Byte>()
+        val candidate = mutableListOf<Int>()
+        while (true) {
+            val value = getchar()
+            if (value < 0) {
+                content.addAll(candidate.map { it.toByte() })
+                return content.toByteArray().decodeToString()
+            }
+
+            candidate += value
+            if (candidate.isEndMarkerPrefix(endMarker)) {
+                if (candidate.size == endMarker.size) return content.toByteArray().decodeToString()
+                continue
+            }
+
+            while (candidate.isNotEmpty() && !candidate.isEndMarkerPrefix(endMarker)) {
+                content += candidate.removeAt(0).toByte()
+            }
+        }
+    }
 
     private fun readUtf8(first: Int): TerminalKey {
         val byteCount = when {
@@ -107,6 +140,9 @@ internal actual object NativeTerminalInput {
     }
 
 }
+
+private fun List<Int>.isEndMarkerPrefix(endMarker: List<Int>): Boolean =
+    size <= endMarker.size && indices.all { index -> this[index] == endMarker[index] }
 
 private data class SavedTerminalMode(
     val inputFlags: ULong,

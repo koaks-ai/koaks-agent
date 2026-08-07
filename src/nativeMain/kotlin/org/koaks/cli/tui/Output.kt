@@ -30,6 +30,94 @@ internal interface LiveLinesOutput : Output {
     fun replaceLiveLinePrefixes(lines: List<String>, prefixes: List<String>)
 }
 
+/** An output sink that can emit several cursor operations as one terminal update. */
+internal interface FrameOutput : Output {
+    fun beginFrame()
+
+    fun endFrame(forceFlush: Boolean = false)
+}
+
+/**
+ * Buffers writes made inside [inFrame] so terminals do not paint intermediate cursor
+ * positions while a fixed-layout update is still being assembled.
+ */
+internal class FrameBufferedOutput(private val delegate: Output) : LiveLinesOutput, FrameOutput {
+    private val frameBuffer = StringBuilder()
+    private var frameDepth = 0
+    private var flushRequested = false
+    private var liveLineCount = 0
+
+    override fun write(text: String) {
+        if (frameDepth > 0) frameBuffer.append(text) else delegate.write(text)
+    }
+
+    override fun writeLine(text: String) {
+        if (frameDepth > 0) {
+            frameBuffer.append(text).append('\n')
+        } else {
+            delegate.writeLine(text)
+        }
+    }
+
+    override fun replaceLiveLines(lines: List<String>) {
+        redrawLiveLines(this, liveLineCount, lines)
+        liveLineCount = lines.size
+    }
+
+    override fun replaceLiveLinePrefixes(lines: List<String>, prefixes: List<String>) {
+        redrawLiveLinePrefixes(this, liveLineCount, prefixes)
+    }
+
+    override fun flush() {
+        if (frameDepth > 0) {
+            flushRequested = true
+        } else {
+            delegate.flush()
+        }
+    }
+
+    override fun beginFrame() {
+        if (frameDepth == 0) flushRequested = false
+        frameDepth += 1
+    }
+
+    override fun endFrame(forceFlush: Boolean) {
+        check(frameDepth > 0) { "No terminal frame is active." }
+        if (forceFlush) flushRequested = true
+        frameDepth -= 1
+        if (frameDepth > 0) return
+
+        if (frameBuffer.isNotEmpty()) {
+            val rendered = frameBuffer.toString()
+            frameBuffer.clear()
+            delegate.write(rendered)
+        }
+        if (flushRequested) delegate.flush()
+        flushRequested = false
+    }
+}
+
+internal fun Output.withFrameBuffer(): Output =
+    if (this is FrameOutput) this else FrameBufferedOutput(this)
+
+internal inline fun <T> Output.inFrame(forceFlush: Boolean = false, block: () -> T): T {
+    val framed = this as? FrameOutput
+    if (framed == null) {
+        return try {
+            block()
+        } finally {
+            if (forceFlush) flush()
+        }
+    }
+
+    framed.beginFrame()
+    return try {
+        block()
+    } finally {
+        framed.endFrame(forceFlush)
+    }
+}
+
 /** The real terminal sink: `print` + libc `fflush`. */
 internal class StdoutOutput : LiveLinesOutput {
     private var liveLineCount = 0

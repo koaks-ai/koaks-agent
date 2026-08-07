@@ -18,6 +18,7 @@ import org.koaks.cli.config.Environment
 import org.koaks.cli.config.PosixEnvironment
 import org.koaks.cli.config.toBooleanFlagOrFalse
 import org.koaks.cli.config.value
+import org.koaks.cli.tui.Ansi
 import org.koaks.cli.tui.DEFAULT_TERM_ROWS
 import org.koaks.cli.tui.LineReader
 import org.koaks.cli.tui.LineEditorSnapshot
@@ -29,16 +30,19 @@ import org.koaks.cli.tui.StdoutOutput
 import org.koaks.cli.tui.Terminal
 import org.koaks.cli.tui.TerminalLayout
 import org.koaks.cli.tui.Theme
+import org.koaks.cli.tui.inFrame
+import org.koaks.cli.tui.withFrameBuffer
 import org.koaks.framework.loop.AgentEvent
 import org.koaks.runtime.AgentRuntime
 
 internal class AgentApp(
     initialConfig: AgentConfig,
-    private val output: Output = StdoutOutput(),
+    output: Output = StdoutOutput(),
     private val lineReader: LineReader = StdinLineReader,
     private val environment: Environment = PosixEnvironment,
     private val commands: CommandRegistry = CommandRegistry.builtins(),
 ) {
+    private val output = output.withFrameBuffer()
     private val trace = CliTrace.open(environment)
     private val runtime = AgentRuntime {
         maxConcurrency = DEFAULT_MAX_CONCURRENCY
@@ -73,6 +77,7 @@ internal class AgentApp(
                     var lastEditorSnapshot: LineEditorSnapshot? = null
                     var staticMenuRows = 0
                     var fixedMenuRows = 0
+                    var fixedInputRows = 1
                     layout = refreshLayout(layout, theme)
                     if (layout.fixedInput) {
                         InputBox.renderFixed(output, layout, theme)
@@ -91,62 +96,91 @@ internal class AgentApp(
                                 suggestions = lineSuggestions(),
                                 commandNames = commands.commandNames,
                                 scrollPageRows = (layout.outputBottomRow - 1).coerceAtLeast(1),
+                                inputWidth = { InputBox.editorTextWidth(layout) },
                                 onScroll = { rows ->
-                                    layout = refreshLayout(layout, theme, fixedMenuRows)
-                                    fixedViewport?.scrollBy(rows, layout, fixedMenuRows)
+                                    layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
+                                    fixedViewport?.scrollBy(rows, layout, fixedMenuRows, fixedInputRows)
                                 },
                                 onInteractiveStart = {
+                                    output.write(Ansi.ENABLE_BRACKETED_PASTE + Ansi.ENABLE_MODIFY_OTHER_KEYS)
                                     if (layout.fixedInput) {
                                         InputBox.enableInputScrolling(output)
-                                        output.flush()
                                     }
+                                    output.flush()
                                 },
                                 onInteractiveEnd = {
                                     if (layout.fixedInput) {
                                         InputBox.disableInputScrolling(output)
-                                        output.flush()
                                     }
+                                    output.write(Ansi.DISABLE_MODIFY_OTHER_KEYS + Ansi.DISABLE_BRACKETED_PASTE)
+                                    output.flush()
                                 },
                             ) { snapshot ->
                                 lastEditorSnapshot = snapshot
-                                val previousLayout = layout
-                                layout = refreshLayout(layout, theme, fixedMenuRows)
                                 if (layout.fixedInput) {
-                                    val previousMenuRows = fixedMenuRows
-                                    fixedMenuRows = InputBox.renderFixedEditor(
-                                        output = output,
-                                        layout = layout,
-                                        theme = theme,
-                                        snapshot = snapshot,
-                                        previousMenuRows = fixedMenuRows,
-                                    )
-                                    if (layout != previousLayout || fixedMenuRows != previousMenuRows) {
-                                        fixedViewport?.redraw(layout, fixedMenuRows)
-                                        InputBox.positionFixedEditorCursor(
-                                            output = output,
-                                            layout = layout,
-                                            snapshot = snapshot,
-                                            menuRows = fixedMenuRows,
-                                        )
+                                    output.inFrame(forceFlush = true) {
+                                        output.write(Ansi.HIDE_CURSOR)
+                                        try {
+                                            val previousLayout = layout
+                                            layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
+                                            val previousMenuRows = fixedMenuRows
+                                            val previousInputRows = fixedInputRows
+                                            fixedMenuRows = InputBox.renderFixedEditor(
+                                                output = output,
+                                                layout = layout,
+                                                theme = theme,
+                                                snapshot = snapshot,
+                                                previousMenuRows = fixedMenuRows,
+                                                previousInputRows = fixedInputRows,
+                                            )
+                                            fixedInputRows = InputBox.editorTextRows(snapshot, layout)
+                                            if (
+                                                layout != previousLayout ||
+                                                fixedMenuRows != previousMenuRows ||
+                                                fixedInputRows != previousInputRows
+                                            ) {
+                                                if (
+                                                    fixedMenuRows != previousMenuRows ||
+                                                    fixedInputRows != previousInputRows
+                                                ) {
+                                                    InputBox.updateFixedOutputRegion(
+                                                        output,
+                                                        layout,
+                                                        fixedMenuRows,
+                                                        fixedInputRows,
+                                                    )
+                                                }
+                                                fixedViewport?.redraw(layout, fixedMenuRows, fixedInputRows)
+                                                InputBox.positionFixedEditorCursor(
+                                                    output = output,
+                                                    layout = layout,
+                                                    snapshot = snapshot,
+                                                    menuRows = fixedMenuRows,
+                                                )
+                                            }
+                                        } finally {
+                                            output.write(Ansi.SHOW_CURSOR)
+                                        }
                                     }
                                 } else {
+                                    layout = refreshLayout(layout, theme, fixedMenuRows)
                                     staticMenuRows = InputBox.renderStaticEditor(
                                         output = output,
                                         theme = theme,
                                         snapshot = snapshot,
                                         previousMenuRows = staticMenuRows,
                                     )
+                                    output.flush()
                                 }
-                                output.flush()
                             }
                         )
                     } else {
                         lineReader.readLine()
-                    }?.trimEnd() ?: break
-                    layout = refreshLayout(layout, theme, fixedMenuRows)
+                    } ?: break
+                    layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
                     if (layout.fixedInput) {
                         fixedViewport?.scrollToBottom(layout)
-                        InputBox.restoreOutputCursor(output, layout, theme, fixedMenuRows)
+                        InputBox.restoreOutputCursor(output, layout, theme, fixedMenuRows, fixedInputRows)
                     } else {
                         val snapshot = lastEditorSnapshot
                         if (snapshot == null) {
@@ -266,6 +300,7 @@ internal class AgentApp(
         viewport: FixedTerminalViewport,
         theme: Theme,
     ): ConcurrentTurnResult = coroutineScope {
+        var layout = initialLayout
         val inputEvents = Channel<ConcurrentInputEvent>(Channel.UNLIMITED)
         val inputDeferred = async(Dispatchers.Default) {
             try {
@@ -274,13 +309,14 @@ internal class AgentApp(
                         suggestions = lineSuggestions(),
                         commandNames = commands.commandNames,
                         scrollPageRows = (initialLayout.outputBottomRow - 1).coerceAtLeast(1),
+                        inputWidth = { InputBox.editorTextWidth(layout) },
                         onScroll = { rows -> inputEvents.trySend(ConcurrentInputEvent.Scroll(rows)) },
                         onInteractiveStart = { inputEvents.trySend(ConcurrentInputEvent.Started) },
                         onInteractiveEnd = { inputEvents.trySend(ConcurrentInputEvent.Ended) },
                     ) { snapshot ->
                         inputEvents.trySend(ConcurrentInputEvent.Snapshot(snapshot))
                     }
-                )?.trimEnd()
+                )
             } finally {
                 inputEvents.close()
             }
@@ -295,8 +331,8 @@ internal class AgentApp(
             }
         }
 
-        var layout = initialLayout
         var fixedMenuRows = 0
+        var fixedInputRows = 1
         var editorSnapshot: LineEditorSnapshot? = null
         var editorVisible = false
         var modelOpen = true
@@ -321,26 +357,76 @@ internal class AgentApp(
                             modelOpen = false
                         } else {
                             val previousLayout = layout
-                            layout = refreshLayout(layout, theme, fixedMenuRows)
+                            layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
                             val outputSuppressed = viewport.isViewingHistory
-                            if (editorVisible && !outputSuppressed) InputBox.resumeFixedOutput(output)
-                            trace.eventReceived(event)
-                            eventPrinter.print(event)
-                            trace.eventRendered(event)
                             val layoutChanged = layout != previousLayout
-                            if (editorVisible && (!outputSuppressed || layoutChanged)) {
-                                if (!outputSuppressed) InputBox.pauseFixedOutput(output)
-                                viewport.redraw(layout, fixedMenuRows)
-                                editorSnapshot?.let { snapshot ->
-                                    fixedMenuRows = InputBox.renderFixedEditor(
-                                        output = output,
-                                        layout = layout,
-                                        theme = theme,
-                                        snapshot = snapshot,
-                                        previousMenuRows = fixedMenuRows,
-                                    )
+                            val renderVisibleFrame = editorVisible && !outputSuppressed
+                            val redrawEditor = editorVisible && layoutChanged
+                            if (renderVisibleFrame || redrawEditor) {
+                                output.inFrame(forceFlush = layoutChanged) {
+                                    output.write(Ansi.HIDE_CURSOR)
+                                    try {
+                                        if (renderVisibleFrame) InputBox.resumeFixedOutput(output)
+                                        try {
+                                            trace.eventReceived(event)
+                                            eventPrinter.print(event)
+                                            trace.eventRendered(event)
+                                        } finally {
+                                            if (renderVisibleFrame) InputBox.pauseFixedOutput(output)
+                                        }
+                                        if (redrawEditor) {
+                                            val snapshot = editorSnapshot
+                                            if (snapshot == null) {
+                                                viewport.redraw(layout, fixedMenuRows, fixedInputRows)
+                                            } else {
+                                                val previousMenuRows = fixedMenuRows
+                                                val previousInputRows = fixedInputRows
+                                                fixedMenuRows = InputBox.renderFixedEditor(
+                                                    output = output,
+                                                    layout = layout,
+                                                    theme = theme,
+                                                    snapshot = snapshot,
+                                                    previousMenuRows = fixedMenuRows,
+                                                    previousInputRows = fixedInputRows,
+                                                )
+                                                fixedInputRows = InputBox.editorTextRows(snapshot, layout)
+                                                if (
+                                                    fixedMenuRows != previousMenuRows ||
+                                                    fixedInputRows != previousInputRows
+                                                ) {
+                                                    InputBox.updateFixedOutputRegion(
+                                                        output,
+                                                        layout,
+                                                        fixedMenuRows,
+                                                        fixedInputRows,
+                                                    )
+                                                }
+                                                viewport.redraw(layout, fixedMenuRows, fixedInputRows)
+                                                InputBox.positionFixedEditorCursor(
+                                                    output = output,
+                                                    layout = layout,
+                                                    snapshot = snapshot,
+                                                    menuRows = fixedMenuRows,
+                                                )
+                                            }
+                                        } else {
+                                            editorSnapshot?.let { snapshot ->
+                                                InputBox.positionFixedEditorCursor(
+                                                    output = output,
+                                                    layout = layout,
+                                                    snapshot = snapshot,
+                                                    menuRows = fixedMenuRows,
+                                                )
+                                            }
+                                        }
+                                    } finally {
+                                        output.write(Ansi.SHOW_CURSOR)
+                                    }
                                 }
-                                output.flush()
+                            } else {
+                                trace.eventReceived(event)
+                                eventPrinter.print(event)
+                                trace.eventRendered(event)
                             }
                         }
                     }
@@ -351,52 +437,85 @@ internal class AgentApp(
                             null -> inputEventsOpen = false
                             ConcurrentInputEvent.Started -> {
                                 InputBox.enableInputScrolling(output)
+                                output.write(Ansi.ENABLE_BRACKETED_PASTE + Ansi.ENABLE_MODIFY_OTHER_KEYS)
                                 output.flush()
                             }
                             ConcurrentInputEvent.Ended -> {
                                 InputBox.disableInputScrolling(output)
+                                output.write(Ansi.DISABLE_MODIFY_OTHER_KEYS + Ansi.DISABLE_BRACKETED_PASTE)
                                 output.flush()
                             }
                             is ConcurrentInputEvent.Scroll -> {
-                                layout = refreshLayout(layout, theme, fixedMenuRows)
-                                viewport.scrollBy(event.rows, layout, fixedMenuRows)
-                                editorSnapshot?.let { snapshot ->
-                                    fixedMenuRows = InputBox.renderFixedEditor(
-                                        output = output,
-                                        layout = layout,
-                                        theme = theme,
-                                        snapshot = snapshot,
-                                        previousMenuRows = fixedMenuRows,
-                                    )
+                                output.inFrame(forceFlush = true) {
+                                    output.write(Ansi.HIDE_CURSOR)
+                                    try {
+                                        layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
+                                        viewport.scrollBy(event.rows, layout, fixedMenuRows, fixedInputRows)
+                                        editorSnapshot?.let { snapshot ->
+                                            fixedMenuRows = InputBox.renderFixedEditor(
+                                                output = output,
+                                                layout = layout,
+                                                theme = theme,
+                                                snapshot = snapshot,
+                                                previousMenuRows = fixedMenuRows,
+                                                previousInputRows = fixedInputRows,
+                                            )
+                                        }
+                                    } finally {
+                                        output.write(Ansi.SHOW_CURSOR)
+                                    }
                                 }
-                                output.flush()
                             }
                             is ConcurrentInputEvent.Snapshot -> {
                                 editorSnapshot = event.snapshot
-                                val previousLayout = layout
-                                layout = refreshLayout(layout, theme, fixedMenuRows)
-                                if (!editorVisible) {
-                                    InputBox.renderFixed(output, layout, theme)
-                                    editorVisible = true
+                                output.inFrame(forceFlush = true) {
+                                    output.write(Ansi.HIDE_CURSOR)
+                                    try {
+                                        val previousLayout = layout
+                                        layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
+                                        if (!editorVisible) {
+                                            InputBox.renderFixed(output, layout, theme)
+                                            editorVisible = true
+                                        }
+                                        val previousMenuRows = fixedMenuRows
+                                        val previousInputRows = fixedInputRows
+                                        fixedMenuRows = InputBox.renderFixedEditor(
+                                            output = output,
+                                            layout = layout,
+                                            theme = theme,
+                                            snapshot = event.snapshot,
+                                            previousMenuRows = fixedMenuRows,
+                                            previousInputRows = fixedInputRows,
+                                        )
+                                        fixedInputRows = InputBox.editorTextRows(event.snapshot, layout)
+                                        if (
+                                            layout != previousLayout ||
+                                            fixedMenuRows != previousMenuRows ||
+                                            fixedInputRows != previousInputRows
+                                        ) {
+                                            if (
+                                                fixedMenuRows != previousMenuRows ||
+                                                fixedInputRows != previousInputRows
+                                            ) {
+                                                InputBox.updateFixedOutputRegion(
+                                                    output,
+                                                    layout,
+                                                    fixedMenuRows,
+                                                    fixedInputRows,
+                                                )
+                                            }
+                                            viewport.redraw(layout, fixedMenuRows, fixedInputRows)
+                                            InputBox.positionFixedEditorCursor(
+                                                output = output,
+                                                layout = layout,
+                                                snapshot = event.snapshot,
+                                                menuRows = fixedMenuRows,
+                                            )
+                                        }
+                                    } finally {
+                                        output.write(Ansi.SHOW_CURSOR)
+                                    }
                                 }
-                                val previousMenuRows = fixedMenuRows
-                                fixedMenuRows = InputBox.renderFixedEditor(
-                                    output = output,
-                                    layout = layout,
-                                    theme = theme,
-                                    snapshot = event.snapshot,
-                                    previousMenuRows = fixedMenuRows,
-                                )
-                                if (layout != previousLayout || fixedMenuRows != previousMenuRows) {
-                                    viewport.redraw(layout, fixedMenuRows)
-                                    InputBox.positionFixedEditorCursor(
-                                        output = output,
-                                        layout = layout,
-                                        snapshot = event.snapshot,
-                                        menuRows = fixedMenuRows,
-                                    )
-                                }
-                                output.flush()
                             }
                         }
                     }
@@ -410,20 +529,31 @@ internal class AgentApp(
                 if (eventPrinter.hasActiveProgressAnimation) {
                     onTimeout(SUBAGENT_ANIMATION_INTERVAL_MS) {
                         if (!viewport.isViewingHistory && fixedMenuRows == 0) {
-                            layout = refreshLayout(layout, theme, fixedMenuRows)
-                            if (editorVisible) InputBox.resumeFixedOutput(output)
-                            eventPrinter.advanceProgressAnimation(flush = !editorVisible)
+                            layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
                             if (editorVisible) {
-                                InputBox.pauseFixedOutput(output)
-                                editorSnapshot?.let { snapshot ->
-                                    InputBox.positionFixedEditorCursor(
-                                        output = output,
-                                        layout = layout,
-                                        snapshot = snapshot,
-                                        menuRows = fixedMenuRows,
-                                    )
+                                output.inFrame(forceFlush = true) {
+                                    output.write(Ansi.HIDE_CURSOR)
+                                    try {
+                                        InputBox.resumeFixedOutput(output)
+                                        try {
+                                            eventPrinter.advanceProgressAnimation(flush = false)
+                                        } finally {
+                                            InputBox.pauseFixedOutput(output)
+                                        }
+                                        editorSnapshot?.let { snapshot ->
+                                            InputBox.positionFixedEditorCursor(
+                                                output = output,
+                                                layout = layout,
+                                                snapshot = snapshot,
+                                                menuRows = fixedMenuRows,
+                                            )
+                                        }
+                                    } finally {
+                                        output.write(Ansi.SHOW_CURSOR)
+                                    }
                                 }
-                                output.flush()
+                            } else {
+                                eventPrinter.advanceProgressAnimation()
                             }
                         }
                     }
@@ -434,9 +564,9 @@ internal class AgentApp(
         modelJob.join()
         InputBox.disableInputScrolling(output)
         if (editorVisible) {
-            layout = refreshLayout(layout, theme, fixedMenuRows)
+            layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
             viewport.scrollToBottom(layout)
-            InputBox.restoreOutputCursor(output, layout, theme, fixedMenuRows)
+            InputBox.restoreOutputCursor(output, layout, theme, fixedMenuRows, fixedInputRows)
         }
         output.flush()
         ConcurrentTurnResult(layout, input)
@@ -447,13 +577,18 @@ internal class AgentApp(
             LineSuggestion(suggestion.name, suggestion.description)
         }
 
-    private fun refreshLayout(current: TerminalLayout, theme: Theme, fixedMenuRows: Int = 0): TerminalLayout {
+    private fun refreshLayout(
+        current: TerminalLayout,
+        theme: Theme,
+        fixedMenuRows: Int = 0,
+        fixedInputRows: Int = 1,
+    ): TerminalLayout {
         val next = createLayout(environment, theme)
         if (next == current) return current
 
         when {
             current.fixedInput && next.fixedInput -> {
-                InputBox.resizeFixedLayout(output, current, next, fixedMenuRows)
+                InputBox.resizeFixedLayout(output, current, next, fixedMenuRows, fixedInputRows)
             }
             current.fixedInput -> {
                 InputBox.leaveFixedLayout(output, current)
