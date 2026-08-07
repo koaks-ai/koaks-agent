@@ -1,6 +1,6 @@
 plugins {
-    kotlin("multiplatform") version "2.1.21"
-    kotlin("plugin.serialization") version "2.1.21"
+    kotlin("multiplatform") version "2.2.20"
+    kotlin("plugin.serialization") version "2.2.20"
 }
 
 group = "org.koaks.agent"
@@ -13,7 +13,7 @@ kotlin {
         binaries {
             executable {
                 baseName = "koaks-agent"
-                entryPoint = "org.koaks.cli.main"
+                entryPoint = "org.koaks.agent.main"
             }
         }
     }
@@ -22,7 +22,7 @@ kotlin {
         binaries {
             executable {
                 baseName = "koaks-agent"
-                entryPoint = "org.koaks.cli.main"
+                entryPoint = "org.koaks.agent.main"
             }
         }
     }
