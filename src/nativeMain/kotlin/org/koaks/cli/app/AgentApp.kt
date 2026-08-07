@@ -34,6 +34,7 @@ import org.koaks.cli.tui.inFrame
 import org.koaks.cli.tui.withFrameBuffer
 import org.koaks.framework.loop.AgentEvent
 import org.koaks.runtime.AgentRuntime
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class AgentApp(
     initialConfig: AgentConfig,
@@ -283,7 +284,7 @@ internal class AgentApp(
                     }
                 }
                 if (eventPrinter.hasActiveProgressAnimation) {
-                    onTimeout(SUBAGENT_ANIMATION_INTERVAL_MS) {
+                    onTimeout(SUBAGENT_ANIMATION_INTERVAL_MS.milliseconds) {
                         eventPrinter.advanceProgressAnimation()
                     }
                 }
@@ -527,7 +528,7 @@ internal class AgentApp(
                     }
                 }
                 if (eventPrinter.hasActiveProgressAnimation) {
-                    onTimeout(SUBAGENT_ANIMATION_INTERVAL_MS) {
+                    onTimeout(SUBAGENT_ANIMATION_INTERVAL_MS.milliseconds) {
                         if (!viewport.isViewingHistory && fixedMenuRows == 0) {
                             layout = refreshLayout(layout, theme, fixedMenuRows, fixedInputRows)
                             if (editorVisible) {
