@@ -21,6 +21,13 @@ internal class Theme(val enabled: Boolean) {
     fun codeString(text: String): String = color(Ansi.CODE_STRING, text)
     fun codeComment(text: String): String = color(Ansi.CODE_COMMENT, text)
     fun codeNumber(text: String): String = color(Ansi.CODE_NUMBER, text)
+    fun heading(level: Int, text: String): String = when (level) {
+        1 -> color(Ansi.BOLD + Ansi.CYAN, text)
+        2 -> color(Ansi.BOLD + Ansi.ORANGE_YELLOW, text)
+        3 -> color(Ansi.GREEN, text)
+        4 -> color(Ansi.BOLD, text)
+        else -> text
+    }
 
     fun inputSide(): String =
         if (enabled) "${Ansi.USER_INPUT_BORDER}┃${Ansi.RESET}" else "┃"

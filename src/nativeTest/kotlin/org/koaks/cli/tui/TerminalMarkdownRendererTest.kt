@@ -76,6 +76,63 @@ class TerminalMarkdownRendererTest {
     }
 
     @Test
+    fun rendersHeadingLevelsOneThroughFourWithoutMarkers() {
+        val source = "# First\n## Second\n### Third\n#### Fourth\n##### Fifth\n#not a heading\n"
+
+        assertEquals(
+            "First\nSecond\nThird\nFourth\n##### Fifth\n#not a heading\n",
+            renderInChunks(source),
+        )
+    }
+
+    @Test
+    fun stylesHeadingLevelsByColorAndEmphasis() {
+        val renderer = TerminalMarkdownRenderer(Theme(enabled = true))
+
+        val rendered = renderer.render("# First\n## Second\n### Third\n#### Fourth\n") + renderer.finish()
+
+        assertEquals(
+            "${Ansi.BOLD}${Ansi.CYAN}First${Ansi.RESET}\n" +
+                "${Ansi.BOLD}${Ansi.ORANGE_YELLOW}Second${Ansi.RESET}\n" +
+                "${Ansi.GREEN}Third${Ansi.RESET}\n" +
+                "${Ansi.BOLD}Fourth${Ansi.RESET}\n",
+            rendered,
+        )
+    }
+
+    @Test
+    fun rendersHeadingsAtEveryChunkBoundary() {
+        val source = "# First\n## Second\n### Third\n#### Fourth\n"
+        val expected = renderInChunks(source)
+
+        for (splitAt in 0..source.length) {
+            assertEquals(
+                expected,
+                renderInChunks(source.substring(0, splitAt), source.substring(splitAt)),
+                "splitAt=$splitAt",
+            )
+        }
+    }
+
+    @Test
+    fun rendersHeadingsOneCharacterAtATimeWithoutFallback() {
+        val source = "# First\n## Second\n### Third\n#### Fourth"
+        val fallbacks = mutableListOf<TerminalMarkdownRenderer.MarkdownFallback>()
+        val renderer = TerminalMarkdownRenderer(
+            theme = Theme(enabled = false),
+            onFallback = fallbacks::add,
+        )
+
+        val rendered = buildString {
+            source.forEach { append(renderer.render(it.toString())) }
+            append(renderer.finish())
+        }
+
+        assertEquals("First\nSecond\nThird\nFourth", rendered)
+        assertEquals(emptyList(), fallbacks)
+    }
+
+    @Test
     fun rendersMarkdownOneCharacterAtATime() {
         val cases = listOf(
             "A **bold** value and `inline code`.",

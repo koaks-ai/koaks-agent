@@ -2,7 +2,7 @@ package org.koaks.cli.tui
 
 /**
  * Tiny streaming renderer for the small Markdown subset the CLI displays:
- * bold, inline code, and fenced code blocks.
+ * headings, bold, inline code, and fenced code blocks.
  */
 internal class TerminalMarkdownRenderer(
     private val theme: Theme,
@@ -20,6 +20,7 @@ internal class TerminalMarkdownRenderer(
 
     private enum class State {
         Normal,
+        Heading,
         Bold,
         InlineCode,
         FenceInfo,
@@ -35,6 +36,7 @@ internal class TerminalMarkdownRenderer(
     private var pending = ""
     private var plainTextMode = false
     private var atLineStart = true
+    private var headingLevel = 0
     private val fenceInfo = StringBuilder()
     private var codeLanguage = "text"
     private var codeBlockOpened = false
@@ -66,6 +68,7 @@ internal class TerminalMarkdownRenderer(
                 } else {
                     when (state) {
                         State.Normal -> drainNormal(stepOut, final)
+                        State.Heading -> drainHeading(stepOut)
                         State.Bold -> drainDelimitedSpan(stepOut, "**", theme::bold, final)
                         State.InlineCode -> drainDelimitedSpan(stepOut, "`", theme::inlineCode, final)
                         State.FenceInfo -> drainFenceInfo(stepOut, final)
@@ -117,6 +120,11 @@ internal class TerminalMarkdownRenderer(
     private fun finalizeMarkdown(out: StringBuilder) {
         when (state) {
             State.Normal -> Unit
+            State.Heading -> {
+                headingLevel = 0
+                state = State.Normal
+            }
+
             State.Bold -> {
                 state = State.Normal
             }
@@ -152,6 +160,10 @@ internal class TerminalMarkdownRenderer(
     }
 
     private fun drainNormal(out: StringBuilder, final: Boolean): DrainResult {
+        if (atLineStart && pending.startsWith('#')) {
+            return drainHeadingStart(out, final)
+        }
+
         if (pending.startsWith("```")) {
             if (!atLineStart) appendPlain(out, "\n")
             consume(3)
@@ -197,6 +209,56 @@ internal class TerminalMarkdownRenderer(
 
         appendPlain(out, first.toString())
         consume(1)
+        return DrainResult.Progressed
+    }
+
+    private fun drainHeadingStart(out: StringBuilder, final: Boolean): DrainResult {
+        val markerLength = pending.indexOfFirst { it != '#' }.let { index ->
+            if (index >= 0) index else pending.length
+        }
+        if (markerLength > MAX_HEADING_LEVEL) {
+            appendPlain(out, "#")
+            consume(1)
+            return DrainResult.Progressed
+        }
+
+        if (markerLength == pending.length) {
+            if (!final) return DrainResult.NeedMoreInput
+            headingLevel = markerLength
+            consume(markerLength)
+            state = State.Heading
+            return DrainResult.Progressed
+        }
+
+        val separator = pending[markerLength]
+        if (separator != ' ' && separator != '\t' && separator != '\n') {
+            appendPlain(out, "#")
+            consume(1)
+            return DrainResult.Progressed
+        }
+
+        headingLevel = markerLength
+        consume(markerLength + if (separator == '\n') 0 else 1)
+        state = State.Heading
+        return DrainResult.Progressed
+    }
+
+    private fun drainHeading(out: StringBuilder): DrainResult {
+        val newlineAt = pending.indexOf('\n')
+        val contentLength = if (newlineAt >= 0) newlineAt else pending.length
+        if (contentLength > 0) {
+            appendStyled(out, pending.substring(0, contentLength)) { text ->
+                theme.heading(headingLevel, text)
+            }
+        }
+        consume(contentLength)
+
+        if (newlineAt >= 0) {
+            appendPlain(out, "\n")
+            consume(1)
+            headingLevel = 0
+            state = State.Normal
+        }
         return DrainResult.Progressed
     }
 
@@ -294,6 +356,7 @@ internal class TerminalMarkdownRenderer(
 
     private fun resetParserState() {
         state = State.Normal
+        headingLevel = 0
         fenceInfo.clear()
         codeLanguage = "text"
         codeBlockOpened = false
@@ -621,6 +684,7 @@ internal class TerminalMarkdownRenderer(
         const val DEFAULT_CODE_BLOCK_WIDTH = 87
         const val MIN_CODE_BLOCK_WIDTH = 16
         const val CODE_BLOCK_HORIZONTAL_CHROME = 4
+        const val MAX_HEADING_LEVEL = 4
         val KEYWORDS_BY_LANGUAGE = mapOf(
             "kotlin" to setOf(
                 "as",
