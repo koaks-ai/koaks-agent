@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-2022
+            target: windowsX64
+            executable: WindowsX64
+            experimental: false
+            extra_args: ""
+          - name: macOS ARM64
+            runner: macos-14
+            target: macosArm64
+            executable: MacosArm64
+            experimental: false
+            extra_args: ""
+          # Koaks Core does not currently publish macOS x64 artifacts. Keep the
+          # target visible and exercised as soon as those artifacts become available.
+          - name: macOS x64 (Koaks artifact pending)
+            runner: macos-13
+            target: macosX64
+            executable: MacosX64
+            experimental: true
+            extra_args: "-PkoaksEnableMacosX64=true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Static analysis and formatting
+        if: matrix.target == 'windowsX64'
+        shell: bash
+        run: ./gradlew spotlessCheck
+
+      - name: Test and link release executable
+        shell: bash
+        run: >-
+          ./gradlew ${{ matrix.extra_args }}
+          :agent-core:${{ matrix.target }}Test
+          :frontend-tui:${{ matrix.target }}Test
+          :app-cli:${{ matrix.target }}Test
+          :app-cli:linkReleaseExecutable${{ matrix.executable }}
+          --stacktrace
+
+      - name: Architecture guardrails
+        shell: bash
+        run: |
+          ! grep -R -E "Channel\.UNLIMITED|class AgentApp" \
+            --include="*.kt" --include="*.toml" \
+            --exclude-dir="*Test" --exclude-dir=build --exclude-dir=.gradle .
+          test -z "$(find . -path "*/src/*" -type d -iname "*ios*")"
+          git diff --check

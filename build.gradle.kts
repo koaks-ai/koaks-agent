@@ -1,50 +1,30 @@
 plugins {
-    kotlin("multiplatform") version "2.2.20"
-    kotlin("plugin.serialization") version "2.2.20"
+    id("com.diffplug.spotless") version "7.2.1" apply false
 }
 
 group = "org.koaks.agent"
 version = "1.0-SNAPSHOT"
 
-kotlin {
-    jvmToolchain(21)
+allprojects {
+    group = rootProject.group
+    version = rootProject.version
+}
 
-    macosArm64("macosArm") {
-        binaries {
-            executable {
-                baseName = "koaks-agent"
-                entryPoint = "org.koaks.agent.main"
-            }
+subprojects {
+    apply(plugin = "com.diffplug.spotless")
+
+    configure<com.diffplug.gradle.spotless.SpotlessExtension> {
+        kotlin {
+            target("src/**/*.kt")
+            ktlint("1.6.0")
+            trimTrailingWhitespace()
+            endWithNewline()
         }
-    }
-
-    mingwX64("windowsX64") {
-        binaries {
-            executable {
-                baseName = "koaks-agent"
-                entryPoint = "org.koaks.agent.main"
-            }
-        }
-    }
-
-    iosArm64()
-    iosSimulatorArm64()
-
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation("org.koaks:koaks-core:${property("koaksVersion")}")
-                implementation("org.koaks:koaks-model-anthropic:${property("koaksVersion")}")
-                implementation("org.koaks:koaks-model-ollama:${property("koaksVersion")}")
-                implementation("org.koaks:koaks-model-openai:${property("koaksVersion")}")
-                implementation("org.koaks:koaks-model-qwen:${property("koaksVersion")}")
-            }
-        }
-
-        nativeTest {
-            dependencies {
-                implementation(kotlin("test"))
-            }
+        kotlinGradle {
+            target("*.gradle.kts")
+            ktlint("1.6.0")
+            trimTrailingWhitespace()
+            endWithNewline()
         }
     }
 }

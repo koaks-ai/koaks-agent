@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         mavenCentral()
         gradlePluginPortal()
@@ -17,3 +18,9 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "koaks-agent"
+
+include(
+    ":app-cli",
+    ":agent-core",
+    ":frontend-tui",
+)
