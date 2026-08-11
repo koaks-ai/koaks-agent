@@ -2,9 +2,9 @@
 
 A Kotlin/Native terminal agent built as a thin product layer on top of Koaks.
 
-The product is split into three Gradle modules: `app-cli` for composition and runtime
-lifecycle, `agent-core` for configuration/providers/tools/platform integration, and
-`frontend-tui` for terminal interaction and rendering.
+The product is split into three Gradle modules: `app` for process lifecycle and the
+composition root, `agent` for product configuration/session/tools/provider logic, and
+`tui` for terminal interaction and rendering.
 
 ## Configure
 
@@ -41,11 +41,11 @@ appropriate filesystem permissions.
 Java 21 is required for Gradle.
 
 ```powershell
-.\gradlew.bat :app-cli:windowsX64Test :app-cli:linkReleaseExecutableWindowsX64
+.\gradlew.bat :agent:windowsX64Test :tui:windowsX64Test :app:windowsX64Test :app:linkReleaseExecutableWindowsX64
 ```
 
 ```bash
-./gradlew :app-cli:macosArm64Test :app-cli:linkReleaseExecutableMacosArm64
+./gradlew :agent:macosArm64Test :tui:macosArm64Test :app:macosArm64Test :app:linkReleaseExecutableMacosArm64
 ```
 
 See [architecture](docs/architecture.md) for module responsibilities and

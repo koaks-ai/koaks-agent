@@ -56,10 +56,10 @@ jobs:
         shell: bash
         run: >-
           ./gradlew ${{ matrix.extra_args }}
-          :agent-core:${{ matrix.target }}Test
-          :frontend-tui:${{ matrix.target }}Test
-          :app-cli:${{ matrix.target }}Test
-          :app-cli:linkReleaseExecutable${{ matrix.executable }}
+          :agent:${{ matrix.target }}Test
+          :tui:${{ matrix.target }}Test
+          :app:${{ matrix.target }}Test
+          :app:linkReleaseExecutable${{ matrix.executable }}
           --stacktrace
 
       - name: Architecture guardrails
@@ -68,5 +68,15 @@ jobs:
           ! grep -R -E "Channel\.UNLIMITED|class AgentApp" \
             --include="*.kt" --include="*.toml" \
             --exclude-dir="*Test" --exclude-dir=build --exclude-dir=.gradle .
+          ! grep -R -E "org\.koaks\.agent\.app|CliException|SIDE_EFFECT_TOOLS|ResolvedAppConfig|BuiltinCliTools|NativeCliIo" \
+            --include="*.kt" --exclude-dir=build --exclude-dir=.gradle .
+          ! grep -R "import org.koaks.agent.definition" \
+            --include="*.kt" agent/src/nativeMain/kotlin/org/koaks/agent/tool
+          ! grep -R "AgentConfig" \
+            --include="*.kt" agent/src/commonMain/kotlin/org/koaks/agent/provider \
+            agent/src/nativeMain/kotlin/org/koaks/agent/provider
+          ! grep -R "org.koaks.agent.session" \
+            --include="*.kt" agent/src/commonMain/kotlin/org/koaks/agent/config \
+            agent/src/nativeMain/kotlin/org/koaks/agent/config
           test -z "$(find . -path "*/src/*" -type d -iname "*ios*")"
           git diff --check

@@ -13,7 +13,7 @@ koaksEnableMacosX64=false
 Minimal reproduction after publishing is available from this repository:
 
 ```bash
-./gradlew -PkoaksEnableMacosX64=true :app-cli:linkReleaseExecutableMacosX64
+./gradlew -PkoaksEnableMacosX64=true :app:linkReleaseExecutableMacosX64
 ```
 
 CI keeps this job visible as non-blocking. Once matching Koaks artifacts exist, remove
@@ -24,7 +24,7 @@ workaround.
 ## Process isolation is outside Koaks runtime semantics
 
 Koaks resource scopes provide structured lifetime and cancellation to the tool call,
-but they do not create an operating-system sandbox. The `agent-core` tool package
+but they do not create an operating-system sandbox. The `agent` tool package
 therefore labels shell execution as a side effect, requests human approval, limits
 its environment, deadline and output, and makes no sandbox claim. Stronger
 process-tree or filesystem isolation would require a platform sandbox implementation

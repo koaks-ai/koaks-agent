@@ -20,7 +20,7 @@ dependencyResolutionManagement {
 rootProject.name = "koaks-agent"
 
 include(
-    ":app-cli",
-    ":agent-core",
-    ":frontend-tui",
+    ":agent",
+    ":tui",
+    ":app",
 )
