@@ -102,8 +102,11 @@ class TerminalFrontendInteractionTest {
 
             assertContains(output.content, "Approval required")
             assertContains(output.content, "Allow once")
+            assertContains(output.content, "Allow for this session")
             assertContains(output.content, "Deny")
-            assertContains(output.content, "denied")
+            assertTrue(output.content.indexOf("Allow once") < output.content.indexOf("Allow for this session"))
+            assertTrue(output.content.indexOf("Allow for this session") < output.content.indexOf("Deny"))
+            assertContains(output.content, "allowed")
         }
 }
 
@@ -208,12 +211,11 @@ private class ApprovalLineReader(
             var menuHandled = false
             var attempts = 0
             while (!menuHandled && attempts < 100) {
-                menuHandled = request.onKey(TerminalKey.Down)
+                menuHandled = request.onKey(TerminalKey.Enter)
                 if (!menuHandled) runBlocking { delay(10) }
                 attempts += 1
             }
             assertTrue(menuHandled)
-            assertTrue(request.onKey(TerminalKey.Enter))
             runBlocking { approvalResolved.await() }
             request.onUpdate(
                 LineEditorSnapshot(

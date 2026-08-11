@@ -20,6 +20,7 @@ import org.koaks.agent.platform.value
 import org.koaks.agent.session.ChatSession
 import org.koaks.agent.session.SessionUpdateFailure
 import org.koaks.agent.session.SessionUpdateResult
+import org.koaks.agent.tui.approval.ApprovalDecision
 import org.koaks.agent.tui.approval.TerminalToolApproval
 import org.koaks.agent.tui.approval.ToolApprovalRequest
 import org.koaks.agent.tui.command.CommandRegistry
@@ -245,14 +246,18 @@ public class TerminalFrontend internal constructor(
     private fun readStaticApproval(
         request: ToolApprovalRequest,
         theme: Theme,
-    ): Boolean {
+    ): ApprovalDecision {
         val summary = approvalArgumentSummary(request.arguments)
         output.writeLine(theme.warn("\n[approval required] ${request.toolName} $summary"))
-        output.write("Allow once? [y/N] ")
+        output.writeLine("1. Allow once")
+        output.writeLine("2. Allow for this session")
+        output.writeLine("3. Deny")
+        output.write("Select [1/2/3] (default 1): ")
         output.flush()
         return when (lineReader.readLine()?.trim()?.lowercase()) {
-            "y", "yes" -> true
-            else -> false
+            null, "", "1", "y", "yes", "a", "allow" -> ApprovalDecision.AllowOnce
+            "2", "s", "session" -> ApprovalDecision.AllowForSession
+            else -> ApprovalDecision.Deny
         }
     }
 
@@ -396,7 +401,7 @@ public class TerminalFrontend internal constructor(
                                                 event.handled.complete(true)
                                             }
                                             is ApprovalKeyOutcome.Resolved -> {
-                                                approval.request.respond(outcome.allowed)
+                                                approval.request.respond(outcome.decision)
                                                 activeApproval = null
                                                 renderFixedSnapshot(
                                                     theme,
@@ -596,6 +601,7 @@ public class TerminalFrontend internal constructor(
             suggestions =
                 listOf(
                     LineSuggestion("Allow once", "Run this tool call once"),
+                    LineSuggestion("Allow for this session", "Allow future calls to this tool for this session"),
                     LineSuggestion("Deny", "Reject this tool call"),
                 ),
             selectedSuggestionIndex = state.selectedIndex,
@@ -759,31 +765,43 @@ public class TerminalFrontend internal constructor(
 
     private data class ApprovalMenuState(
         val request: ToolApprovalRequest,
-        var selectedIndex: Int = 1,
+        var selectedIndex: Int = 0,
     ) {
         fun handle(key: TerminalKey): ApprovalKeyOutcome =
             when (key) {
-                TerminalKey.Up, TerminalKey.Left, TerminalKey.PageUp, TerminalKey.Home -> {
+                TerminalKey.Up, TerminalKey.Left, TerminalKey.PageUp -> {
+                    selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                    ApprovalKeyOutcome.Updated
+                }
+                TerminalKey.Home -> {
                     selectedIndex = 0
                     ApprovalKeyOutcome.Updated
                 }
-                TerminalKey.Down, TerminalKey.Right, TerminalKey.PageDown, TerminalKey.End, TerminalKey.Tab -> {
-                    selectedIndex = 1
+                TerminalKey.Down, TerminalKey.Right, TerminalKey.PageDown, TerminalKey.Tab -> {
+                    selectedIndex = (selectedIndex + 1).coerceAtMost(2)
                     ApprovalKeyOutcome.Updated
                 }
-                TerminalKey.Enter -> ApprovalKeyOutcome.Resolved(allowed = selectedIndex == 0)
-                TerminalKey.Escape -> ApprovalKeyOutcome.Resolved(allowed = false)
-                TerminalKey.EndOfInput -> ApprovalKeyOutcome.Resolved(allowed = false, consumeKey = false)
+                TerminalKey.End -> {
+                    selectedIndex = 2
+                    ApprovalKeyOutcome.Updated
+                }
+                TerminalKey.Enter -> ApprovalKeyOutcome.Resolved(ApprovalDecision.entries[selectedIndex])
+                TerminalKey.Escape -> ApprovalKeyOutcome.Resolved(ApprovalDecision.Deny)
+                TerminalKey.EndOfInput ->
+                    ApprovalKeyOutcome.Resolved(ApprovalDecision.Deny, consumeKey = false)
                 is TerminalKey.Text ->
                     when (key.value.trim().lowercase()) {
-                        "y", "yes", "a", "allow", "1" -> ApprovalKeyOutcome.Resolved(allowed = true)
-                        "n", "no", "d", "deny", "2" -> ApprovalKeyOutcome.Resolved(allowed = false)
+                        "y", "yes", "a", "allow", "1" ->
+                            ApprovalKeyOutcome.Resolved(ApprovalDecision.AllowOnce)
+                        "s", "session", "2" -> ApprovalKeyOutcome.Resolved(ApprovalDecision.AllowForSession)
+                        "n", "no", "d", "deny", "3" -> ApprovalKeyOutcome.Resolved(ApprovalDecision.Deny)
                         else -> ApprovalKeyOutcome.Consumed
                     }
                 is TerminalKey.Paste ->
                     when (key.value.trim().lowercase()) {
-                        "y", "yes", "allow" -> ApprovalKeyOutcome.Resolved(allowed = true)
-                        "n", "no", "deny" -> ApprovalKeyOutcome.Resolved(allowed = false)
+                        "y", "yes", "allow", "1" -> ApprovalKeyOutcome.Resolved(ApprovalDecision.AllowOnce)
+                        "s", "session", "2" -> ApprovalKeyOutcome.Resolved(ApprovalDecision.AllowForSession)
+                        "n", "no", "deny", "3" -> ApprovalKeyOutcome.Resolved(ApprovalDecision.Deny)
                         else -> ApprovalKeyOutcome.Consumed
                     }
                 TerminalKey.Backspace,
@@ -799,7 +817,7 @@ public class TerminalFrontend internal constructor(
         data object Updated : ApprovalKeyOutcome
 
         data class Resolved(
-            val allowed: Boolean,
+            val decision: ApprovalDecision,
             val consumeKey: Boolean = true,
         ) : ApprovalKeyOutcome
     }
