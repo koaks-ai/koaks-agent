@@ -8,5 +8,5 @@ import kotlinx.cinterop.toKString
 import platform.posix.getenv
 
 public actual object PlatformEnvironment : Environment {
-    override fun get(key: String): String? = getenv(key)?.toKString()
+    public actual override fun get(key: String): String? = getenv(key)?.toKString()
 }

@@ -6,7 +6,9 @@ public interface Environment {
     public fun get(key: String): String?
 }
 
-public expect object PlatformEnvironment : Environment
+public expect object PlatformEnvironment : Environment {
+    public override fun get(key: String): String?
+}
 
 public fun Environment.value(key: String): String? = get(key)?.trim()?.takeIf { it.isNotEmpty() }
 

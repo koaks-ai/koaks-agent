@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 public actual object PlatformEnvironment : Environment {
-    override fun get(key: String): String? = System.getenv(key)
+    public actual override fun get(key: String): String? = System.getenv(key)
 }
 
 public actual object PlatformInfo {
