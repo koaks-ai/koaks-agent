@@ -11,7 +11,7 @@ internal object TomlConfigParser {
         val root = RootBuilder()
         val providers = mutableMapOf<Provider, ProviderBuilder>()
         val providerOrder = mutableListOf<Provider>()
-        var section: Section = Section.Root
+        var activeProvider: Provider? = null
         val lines = text.lines()
         var index = 0
 
@@ -25,10 +25,10 @@ internal object TomlConfigParser {
             }
 
             if (line.startsWith("[") && line.endsWith("]")) {
-                section = parseSection(line, sourceName, lineNumber)
-                if (section is Section.ProviderTable && section.provider !in providers) {
-                    providers[section.provider] = ProviderBuilder()
-                    providerOrder += section.provider
+                activeProvider = parseSection(line, sourceName, lineNumber)
+                if (activeProvider !in providers) {
+                    providers[activeProvider] = ProviderBuilder()
+                    providerOrder += activeProvider
                 }
                 index += 1
                 continue
@@ -49,12 +49,10 @@ internal object TomlConfigParser {
                 value += "\n${stripComment(lines[index]).trim()}"
             }
 
-            when (val activeSection = section) {
-                Section.Root -> root.apply(key, value, sourceName, lineNumber)
-                is Section.ProviderTable ->
-                    providers
-                        .getValue(activeSection.provider)
-                        .apply(key, value, sourceName, lineNumber)
+            if (activeProvider == null) {
+                root.apply(key, value, sourceName, lineNumber)
+            } else {
+                providers.getValue(activeProvider).apply(key, value, sourceName, lineNumber)
             }
 
             index += 1
@@ -80,25 +78,17 @@ internal object TomlConfigParser {
         line: String,
         sourceName: String,
         lineNumber: Int,
-    ): Section {
+    ): Provider {
         val name = line.removePrefix("[").removeSuffix("]").trim()
         if (name.isBlank()) configError(sourceName, lineNumber, "Empty section name.")
 
         val parts = name.split(".").map { it.trim() }
         if (parts.size == 2 && parts[0] == "providers") {
-            return Section.ProviderTable(parseProvider(parts[1], sourceName, lineNumber))
+            return parseProvider(parts[1], sourceName, lineNumber)
         }
 
         configError(sourceName, lineNumber, "Unsupported section [$name]. Use [providers.<provider>].")
     }
-}
-
-private sealed interface Section {
-    data object Root : Section
-
-    data class ProviderTable(
-        val provider: Provider,
-    ) : Section
 }
 
 private class RootBuilder {
