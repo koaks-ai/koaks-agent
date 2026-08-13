@@ -1,7 +1,6 @@
 package org.koaks.agent.provider
 
 import org.koaks.agent.credential.ApiKey
-import org.koaks.agent.credential.CredentialRef
 
 private const val OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/api/chat"
 private const val OPENAI_DEFAULT_BASE_URL = "https://api.openai.com"
@@ -56,7 +55,6 @@ public object ProviderCatalog {
 public data class ProviderProfile public constructor(
     public val provider: Provider,
     public val baseUrl: String,
-    public val credentialRef: CredentialRef?,
     public val defaultModel: String,
     public val modelList: List<String>,
     public val apiKey: ApiKey? = null,
@@ -70,7 +68,6 @@ public data class ProviderProfiles public constructor(
         profiles[provider] ?: ProviderProfile(
             provider = provider,
             baseUrl = provider.defaultBaseUrl,
-            credentialRef = null,
             defaultModel = provider.defaultModel,
             modelList = emptyList(),
             apiKey = null,

@@ -1,10 +1,11 @@
 plugins {
-    id("koaks.native-application")
+    id("koaks.multiplatform-application")
 }
 
-koaksNativeApplication {
+koaksMultiplatformApplication {
     baseName.set("koaks-agent")
     entryPoint.set("org.koaks.agent.cli.main")
+    jvmMainClass.set("org.koaks.agent.cli.MainJvmKt")
 }
 
 kotlin {

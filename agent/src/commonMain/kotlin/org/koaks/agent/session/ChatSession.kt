@@ -1,7 +1,6 @@
 package org.koaks.agent.session
 
 import kotlinx.coroutines.flow.Flow
-import org.koaks.agent.credential.CredentialSource
 import org.koaks.agent.provider.Provider
 import org.koaks.framework.loop.AgentEvent
 import org.koaks.framework.memory.ThreadId
@@ -62,11 +61,6 @@ public data class SessionSnapshot public constructor(
 )
 
 public sealed interface CredentialSummary {
-    public data class Reference(
-        val source: CredentialSource,
-        val name: String,
-    ) : CredentialSummary
-
     public data object InlineConfigured : CredentialSummary
 
     public data object NotRequired : CredentialSummary

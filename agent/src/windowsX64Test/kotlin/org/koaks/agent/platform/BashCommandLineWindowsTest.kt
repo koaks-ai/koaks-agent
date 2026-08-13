@@ -11,7 +11,7 @@ class BashCommandLineWindowsTest {
     @Test
     fun runsPowerShellSyntax() {
         val result =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command = "\$items = @(1, 2, 3); Write-Output \$items.Count",
                 maxOutputChars = 1_000,
             )
@@ -21,9 +21,9 @@ class BashCommandLineWindowsTest {
     }
 
     @Test
-    fun returnsNativeProcessExitCode() {
+    fun returnsShellProcessExitCode() {
         val result =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command = "cmd.exe /c exit 7",
                 maxOutputChars = 1_000,
             )
@@ -35,7 +35,7 @@ class BashCommandLineWindowsTest {
     fun terminatesCommandsThatExceedTheDeadline() {
         val started = TimeSource.Monotonic.markNow()
         val result =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command = "Start-Sleep -Seconds 10",
                 maxOutputChars = 1_000,
                 timeoutMillis = 100,
@@ -48,7 +48,7 @@ class BashCommandLineWindowsTest {
     @Test
     fun rendersPowerShellErrorsAsPlainTextInsteadOfCliXml() {
         val result =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command = "Get-ChildItem -DefinitelyNotARealParameter",
                 maxOutputChars = 10_000,
             )
@@ -62,7 +62,7 @@ class BashCommandLineWindowsTest {
     @Test
     fun drainsLargeStdoutAndStderrWithoutDeadlocking() {
         val result =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command =
                     "1..1000 | ForEach-Object { " +
                         "[Console]::Out.WriteLine(('output-{0:D4}-' -f \$_) + ('x' * 80)); " +

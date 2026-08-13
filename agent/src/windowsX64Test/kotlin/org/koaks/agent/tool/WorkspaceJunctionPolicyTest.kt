@@ -3,8 +3,8 @@
 package org.koaks.agent.tool
 
 import kotlinx.cinterop.toKString
-import org.koaks.agent.platform.NativeFileSystem
-import org.koaks.agent.platform.NativeProcess
+import org.koaks.agent.platform.PlatformFileSystem
+import org.koaks.agent.platform.PlatformProcess
 import org.koaks.agent.tool.policy.WorkspaceAccessPolicy
 import org.koaks.framework.model.AgentFrameworkException
 import platform.posix.getenv
@@ -16,13 +16,13 @@ import kotlin.test.assertFailsWith
 class WorkspaceJunctionPolicyTest {
     @Test
     fun rejectsJunctionsThatResolveOutsideTheWorkspace() {
-        val temp = getenv("TEMP")?.toKString() ?: NativeFileSystem.workingDirectory()
+        val temp = getenv("TEMP")?.toKString() ?: PlatformFileSystem.workingDirectory()
         val base = "${temp.trimEnd('/', '\\')}/koaks-policy-test-${Random.nextLong().toULong()}"
         val workspace = "$base/workspace"
         val outside = "$base/outside"
         val junction = "$workspace/link"
         val setup =
-            NativeProcess.runShell(
+            PlatformProcess.runShell(
                 command =
                     """
                     New-Item -ItemType Directory -Force -Path '${workspace.psQuote()}', '${outside.psQuote()}' | Out-Null
@@ -31,14 +31,14 @@ class WorkspaceJunctionPolicyTest {
                     """.trimIndent(),
                 maxOutputChars = 2_000,
             )
-        assertEquals(0, setup.status, setup.output)
+        assertEquals(0, setup.status, message = setup.output)
 
         try {
             val policy = WorkspaceAccessPolicy(workspace)
             assertFailsWith<AgentFrameworkException> { policy.resolveRead("link/secret.txt") }
         } finally {
             val cleanup =
-                NativeProcess.runShell(
+                PlatformProcess.runShell(
                     command =
                         """
                         if ([System.IO.Directory]::Exists('${junction.psQuote()}')) {
@@ -49,7 +49,7 @@ class WorkspaceJunctionPolicyTest {
                         """.trimIndent(),
                     maxOutputChars = 2_000,
                 )
-            assertEquals(0, cleanup.status, cleanup.output)
+            assertEquals(0, cleanup.status, message = cleanup.output)
         }
     }
 }

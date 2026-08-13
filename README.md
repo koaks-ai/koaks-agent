@@ -1,6 +1,6 @@
 # koaks-agent
 
-A Kotlin/Native terminal agent built as a thin product layer on top of Koaks.
+A Kotlin Multiplatform terminal agent built as a thin product layer on top of Koaks.
 
 The product is split into three Gradle modules: `app` for process lifecycle and the
 composition root, `agent` for product configuration/session/tools/provider logic, and
@@ -25,20 +25,39 @@ show_reasoning = false
 
 [providers.openai]
 base_url = "https://api.openai.com"
-credential_source = "environment"
-credential_name = "OPENAI_API_KEY"
+api_key = "your-openai-api-key"
 model = "gpt-5.5"
 model_list = ["gpt-5.5"]
 ```
 
-`credential_source` is either `environment` or `system`. The latter reads Windows
-Credential Manager or macOS Keychain. For local-only use, `api_key` is also accepted;
-it is never shown by `/status`, but plaintext keys in config should be protected with
+Only an explicit `api_key` in the configuration file is supported. Legacy
+`credential_source` and `credential_name` fields fail with a migration message.
+The key is never shown by `/status`; protect the plaintext configuration file with
 appropriate filesystem permissions.
 
 ## Build
 
 Java 21 is required for Gradle.
+
+```powershell
+.\gradlew.bat :agent:jvmTest :tui:jvmTest :app:jvmTest :app:jvmJar
+.\gradlew.bat :app:runJvm -PappArgs=--help
+```
+
+Build and run the self-contained JVM jar (Java 21 is still required). Use the
+packaged jar for interactive TUI sessions so JLine is attached directly to the
+terminal and can receive raw keyboard and mouse events:
+
+```powershell
+.\gradlew.bat :app:jvmFatJar
+java -jar app\build\libs\koaks-agent.jar
+```
+
+Gradle's `runJvm` task is intended for argument and startup smoke tests such as
+`--help`; Gradle forwards standard input through a pipe, so it cannot expose the
+Windows console's raw arrow-key and mouse-wheel events to JLine.
+
+Native validation on Windows:
 
 ```powershell
 .\gradlew.bat :agent:windowsX64Test :tui:windowsX64Test :app:windowsX64Test :app:linkReleaseExecutableWindowsX64

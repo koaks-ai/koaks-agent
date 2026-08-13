@@ -1,6 +1,5 @@
 @file:OptIn(
     kotlinx.cinterop.ExperimentalForeignApi::class,
-    kotlin.io.encoding.ExperimentalEncodingApi::class,
 )
 
 package org.koaks.agent.platform
@@ -43,14 +42,15 @@ import kotlin.math.max
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 internal actual object BashCommandLine {
-    public actual val toolName: String = "PowerShell"
-    public actual val shellName: String = "PowerShell (`powershell.exe`)"
-    public actual val commandSyntaxGuidance: String =
+    actual val toolName: String = "PowerShell"
+    actual val shellName: String = "PowerShell (`powershell.exe`)"
+    actual val commandSyntaxGuidance: String =
         "On Windows, use PowerShell syntax and cmdlets only. " +
             "Do not use Bash syntax or GNU-style options such as `ls -la`, `cat`, `grep`, or `rm -rf`."
 
-    public actual fun execute(
+    actual fun execute(
         command: String,
         maxOutputChars: Int,
         timeoutMillis: Long,

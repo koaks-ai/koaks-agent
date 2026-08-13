@@ -1,5 +1,16 @@
 plugins {
-    id("koaks.native-library")
+    id("koaks.multiplatform-library")
+}
+
+val jlineVersion = "3.30.6"
+
+kotlin {
+    sourceSets {
+        jvmMain.dependencies {
+            implementation("org.jline:jline-terminal:$jlineVersion")
+            implementation("org.jline:jline-terminal-jna:$jlineVersion")
+        }
+    }
 }
 
 kotlin {

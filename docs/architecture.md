@@ -18,8 +18,8 @@ flowchart LR
 - `:app` (`org.koaks.agent.cli.*`) is the only composition root. It parses argv,
   formats process-level failures, owns fatal handling and trace files, and creates
   the runtime, policies, memory provider, stable thread and terminal frontend.
-- `:agent` (`org.koaks.agent.*`) owns product configuration, credentials, provider
-  bindings, Agent definitions, sessions, tools, policies and native product platform
+- `:agent` (`org.koaks.agent.*`) owns product configuration, inline API-key state,
+  provider bindings, Agent definitions, sessions, tools, policies and platform
   adapters. It does not depend on either frontend module.
 - `:tui` (`org.koaks.agent.tui.*`) owns terminal input, output, rendering, commands,
   approval interaction and reducer state. It depends on `:agent` contracts and never
@@ -75,9 +75,10 @@ layer.
 
 ## Security boundaries
 
-- Configuration may contain a `CredentialRef`, or an explicit `api_key` for
-  local-only setups. `SessionSnapshot` exposes only `CredentialSummary`; `/status`
-  never receives an API key or the full `AgentConfig`.
+- Configuration contains an explicit `api_key` when a provider requires one.
+  `SessionSnapshot` exposes only `CredentialSummary`; `/status` never receives an
+  API key or the full `AgentConfig`. Legacy credential fields are rejected with a
+  migration error.
 - Workspace paths are normalized and resolved to their final filesystem target before
   access. Windows junctions and Apple symbolic links cannot escape the injected root.
 - Shell commands run with an environment allowlist, a deadline and bounded captured
@@ -94,6 +95,11 @@ layer.
 versions. `gradle.properties` is the single source for the Koaks version. A version
 catalog is intentionally not introduced because the main build and included
 `build-logic` build would need a second sharing mechanism for only a few versions.
+
+`koaks.multiplatform-base` configures JVM 21 plus macOS Arm64, optional macOS x64 and
+Windows x64 targets. `commonMain` contains platform-neutral product code; JVM,
+Apple and Windows source sets contain only platform implementations. A guardrail
+keeps `java.*`, `kotlinx.cinterop` and `platform.*` out of `commonMain`.
 
 Gradle 9.6 reports the Gradle 10 `archives configuration` deprecation while applying
 Kotlin Multiplatform 2.2.20 to `:agent`. This repository does not declare or mutate an

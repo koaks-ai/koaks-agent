@@ -1,5 +1,5 @@
 plugins {
-    id("koaks.native-library")
+    id("koaks.multiplatform-library")
 }
 
 kotlin {

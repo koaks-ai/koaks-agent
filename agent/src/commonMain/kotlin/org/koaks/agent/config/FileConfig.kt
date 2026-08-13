@@ -1,7 +1,6 @@
 package org.koaks.agent.config
 
 import org.koaks.agent.credential.ApiKey
-import org.koaks.agent.credential.CredentialRef
 import org.koaks.agent.provider.Provider
 
 public data class FileConfig public constructor(
@@ -25,7 +24,6 @@ public data class FileConfig public constructor(
 
 public data class FileProviderConfig public constructor(
     public val baseUrl: String? = null,
-    public val credentialRef: CredentialRef? = null,
     public val defaultModel: String? = null,
     public val modelList: List<String> = emptyList(),
     public val apiKey: ApiKey? = null,

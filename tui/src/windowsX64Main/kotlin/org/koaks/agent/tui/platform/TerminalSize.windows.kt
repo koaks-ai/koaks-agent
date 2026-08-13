@@ -12,12 +12,12 @@ import platform.windows.GetStdHandle
 import platform.windows.STD_ERROR_HANDLE
 import platform.windows.STD_OUTPUT_HANDLE
 
-internal actual fun nativeTerminalSize(): NativeTerminalSize? =
+internal actual fun platformTerminalSize(): TerminalSize? =
     memScoped {
         readTerminalSize(STD_OUTPUT_HANDLE) ?: readTerminalSize(STD_ERROR_HANDLE)
     }
 
-private fun readTerminalSize(stdHandle: UInt): NativeTerminalSize? =
+private fun readTerminalSize(stdHandle: UInt): TerminalSize? =
     memScoped {
         val info = alloc<CONSOLE_SCREEN_BUFFER_INFO>()
         val handle = GetStdHandle(stdHandle)
@@ -25,7 +25,7 @@ private fun readTerminalSize(stdHandle: UInt): NativeTerminalSize? =
             null
         } else {
             val window = info.srWindow
-            NativeTerminalSize(
+            TerminalSize(
                 rows = (window.Bottom - window.Top + 1).toInt(),
                 columns = (window.Right - window.Left + 1).toInt(),
             )

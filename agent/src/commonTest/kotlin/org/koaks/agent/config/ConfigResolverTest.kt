@@ -1,7 +1,6 @@
 package org.koaks.agent.config
 
-import org.koaks.agent.credential.CredentialRef
-import org.koaks.agent.credential.CredentialSource
+import org.koaks.agent.credential.ApiKey
 import org.koaks.agent.provider.Provider
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,7 +9,6 @@ import kotlin.test.assertFailsWith
 class ConfigResolverTest {
     @Test
     fun resolvesProviderWithoutMaterializingSecret() {
-        val credential = CredentialRef(CredentialSource.ENVIRONMENT, "OPENAI_API_KEY")
         val resolved =
             ConfigResolver.resolve(
                 FileConfig(
@@ -21,15 +19,21 @@ class ConfigResolverTest {
                             Provider.OPENAI to
                                 FileProviderConfig(
                                     baseUrl = "https://example.test",
-                                    credentialRef = credential,
                                     defaultModel = "gpt-test",
+                                    apiKey = ApiKey("secret"),
                                 ),
                         ),
                     providerOrder = listOf(Provider.OPENAI),
                 ),
             )
 
-        assertEquals(credential, resolved.providers.profileFor(Provider.OPENAI).credentialRef)
+        assertEquals(
+            "secret",
+            resolved.providers
+                .profileFor(Provider.OPENAI)
+                .apiKey
+                ?.value,
+        )
         assertEquals("gpt-test", resolved.model.modelName)
     }
 

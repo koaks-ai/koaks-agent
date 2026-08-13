@@ -1,8 +1,6 @@
 package org.koaks.agent.config
 
 import org.koaks.agent.credential.ApiKey
-import org.koaks.agent.credential.CredentialRef
-import org.koaks.agent.credential.CredentialSource
 import org.koaks.agent.provider.Provider
 
 internal object TomlConfigParser {
@@ -139,8 +137,6 @@ private class RootBuilder {
 
 private class ProviderBuilder {
     var baseUrl: String? = null
-    var credentialSource: CredentialSource? = null
-    var credentialName: String? = null
     var apiKey: ApiKey? = null
     var defaultModel: String? = null
     var modelList: List<String> = emptyList()
@@ -153,11 +149,12 @@ private class ProviderBuilder {
     ) {
         when (key) {
             "base_url", "baseUrl" -> baseUrl = parseNonBlankString(key, value, sourceName, lineNumber)
-            "credential_source" ->
-                credentialSource =
-                    CredentialSource.fromId(parseNonBlankString(key, value, sourceName, lineNumber))
-                        ?: configError(sourceName, lineNumber, "Unknown credential source. Expected environment or system.")
-            "credential_name" -> credentialName = parseNonBlankString(key, value, sourceName, lineNumber)
+            "credential_source", "credential_name" ->
+                configError(
+                    sourceName,
+                    lineNumber,
+                    "'$key' has been removed. Configure the provider with api_key instead.",
+                )
             "api_key", "apiKey" -> apiKey = ApiKey(parseNonBlankString(key, value, sourceName, lineNumber))
             "model", "model_name", "default_model" -> defaultModel = parseNonBlankString(key, value, sourceName, lineNumber)
             "model_list", "models" -> modelList = parseStringList(key, value, sourceName, lineNumber)
@@ -165,21 +162,13 @@ private class ProviderBuilder {
         }
     }
 
-    fun build(): FileProviderConfig {
-        if ((credentialSource == null) != (credentialName == null)) {
-            throw ConfigException(ConfigFailure.InvalidValue("credential_source and credential_name must be configured together."))
-        }
-        if (apiKey != null && credentialSource != null) {
-            throw ConfigException(ConfigFailure.InvalidValue("Configure either api_key or credential_source/credential_name, not both."))
-        }
-        return FileProviderConfig(
+    fun build(): FileProviderConfig =
+        FileProviderConfig(
             baseUrl = baseUrl,
-            credentialRef = credentialSource?.let { source -> CredentialRef(source, credentialName!!) },
             defaultModel = defaultModel,
             modelList = modelList,
             apiKey = apiKey,
         )
-    }
 }
 
 private fun stripComment(line: String): String {

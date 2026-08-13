@@ -13,12 +13,12 @@ import platform.posix.TIOCGWINSZ
 import platform.posix.ioctl
 import platform.posix.winsize
 
-internal actual fun nativeTerminalSize(): NativeTerminalSize? =
+internal actual fun platformTerminalSize(): TerminalSize? =
     readTerminalSize(STDOUT_FILENO)
         ?: readTerminalSize(STDERR_FILENO)
         ?: readTerminalSize(STDIN_FILENO)
 
-private fun readTerminalSize(fd: Int): NativeTerminalSize? =
+private fun readTerminalSize(fd: Int): TerminalSize? =
     memScoped {
         val size = alloc<winsize>()
         if (ioctl(fd, TIOCGWINSZ, size.ptr) != 0) return@memScoped null
@@ -28,6 +28,6 @@ private fun readTerminalSize(fd: Int): NativeTerminalSize? =
         if (rows <= 0 || columns <= 0) {
             null
         } else {
-            NativeTerminalSize(rows = rows, columns = columns)
+            TerminalSize(rows = rows, columns = columns)
         }
     }

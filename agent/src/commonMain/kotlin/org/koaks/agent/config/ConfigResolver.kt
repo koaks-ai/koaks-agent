@@ -1,12 +1,16 @@
 package org.koaks.agent.config
 
 import org.koaks.agent.definition.DEFAULT_INSTRUCTIONS
+import org.koaks.agent.platform.Environment
 import org.koaks.agent.provider.Provider
 import org.koaks.agent.provider.ProviderCatalog
 import org.koaks.agent.provider.ProviderProfile
 import org.koaks.agent.provider.ProviderProfiles
 
 public object ConfigResolver {
+    /** Resolve the user's platform configuration file. */
+    public fun resolve(environment: Environment): AgentConfig = resolve(ConfigFileLoader.load(environment))
+
     public fun resolve(fileConfig: FileConfig): AgentConfig {
         if (fileConfig.schemaVersion != CURRENT_CONFIG_SCHEMA_VERSION) {
             throw ConfigException(ConfigFailure.SchemaMismatch(fileConfig.schemaVersion, CURRENT_CONFIG_SCHEMA_VERSION))
@@ -41,7 +45,6 @@ public object ConfigResolver {
             ProviderProfile(
                 provider = provider,
                 baseUrl = providerConfig?.baseUrl ?: provider.defaultBaseUrl,
-                credentialRef = providerConfig?.credentialRef,
                 defaultModel = providerConfig?.modelOrDefault(provider) ?: provider.defaultModel,
                 modelList = providerConfig?.modelList.orEmpty(),
                 apiKey = providerConfig?.apiKey,

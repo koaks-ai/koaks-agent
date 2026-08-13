@@ -23,17 +23,14 @@ public fun usageText(): String =
 
       [providers.openai]
       base_url = "https://api.openai.com"
-      credential_source = "environment"
-      credential_name = "OPENAI_API_KEY"
-      # Alternatively, replace the two credential fields with: api_key = "..."
+      # Protect this file; api_key is intentionally stored inline.
+      api_key = "your-openai-api-key"
       model = "gpt-5.5"
       model_list = ["gpt-5.5"]
 
       [providers.anthropic]
       base_url = "https://api.anthropic.com/v1/messages"
-      credential_source = "environment"
-      credential_name = "ANTHROPIC_API_KEY"
-      # Alternatively, replace the two credential fields with: api_key = "..."
+      api_key = "your-anthropic-api-key"
       model = "claude-opus-4-8"
       model_list = ["claude-opus-4-8"]
 
